@@ -225,7 +225,7 @@ function motionSensorBaseRules(
 ) {
   const presence_on_rule = hue.model.createRule();
   presence_on_rule.name = `${prefix} - presence on`;
-  presence_on_rule.recycle = true;
+  presence_on_rule.recycle = false;
 
   presence_on_rule.addCondition(
     hue.model.ruleConditions
@@ -251,7 +251,7 @@ function motionSensorBaseRules(
 
   const dark_on_rule = hue.model.createRule();
   dark_on_rule.name = `${prefix} - dark on`;
-  dark_on_rule.recycle = true;
+  dark_on_rule.recycle = false;
 
   dark_on_rule.addCondition(
     hue.model.ruleConditions
@@ -277,7 +277,7 @@ function motionSensorBaseRules(
 
   const dim_status_rule = hue.model.createRule();
   dim_status_rule.name = `${prefix} - dim status`;
-  dim_status_rule.recycle = true;
+  dim_status_rule.recycle = false;
 
   dim_status_rule.addCondition(
     hue.model.ruleConditions
@@ -306,7 +306,7 @@ function motionSensorBaseRules(
 
   const dim_presence_rule = hue.model.createRule();
   dim_presence_rule.name = `${prefix} - dim presence`;
-  dim_presence_rule.recycle = true;
+  dim_presence_rule.recycle = false;
 
   dim_presence_rule.addCondition(
     hue.model.ruleConditions
@@ -335,7 +335,7 @@ function motionSensorBaseRules(
 
   const recover_rule = hue.model.createRule();
   recover_rule.name = `${prefix} - recover`;
-  recover_rule.recycle = true;
+  recover_rule.recycle = false;
 
   recover_rule.addCondition(
     hue.model.ruleConditions
@@ -358,7 +358,7 @@ function motionSensorBaseRules(
 
   const off_rule = hue.model.createRule();
   off_rule.name = `${prefix} - off`;
-  off_rule.recycle = true;
+  off_rule.recycle = false;
 
   off_rule.addCondition(
     hue.model.ruleConditions.sensor(presence).when("presence").equals(false)
@@ -384,7 +384,7 @@ function motionSensorBaseRules(
 
   const arm_rule = hue.model.createRule();
   arm_rule.name = `${prefix} - arm`;
-  arm_rule.recycle = true;
+  arm_rule.recycle = false;
 
   arm_rule.addCondition(
     hue.model.ruleConditions.sensor(presence).when("presence").equals(false)
@@ -434,7 +434,7 @@ function setupKitchenSensorRules(
 
   const day_and_on_rule = hue.model.createRule();
   day_and_on_rule.name = `${prefix} - day and on`;
-  day_and_on_rule.recycle = true;
+  day_and_on_rule.recycle = false;
 
   day_and_on_rule.addCondition(
     hue.model.ruleConditions
@@ -467,7 +467,7 @@ function setupKitchenSensorRules(
 
   const night_and_on_rule = hue.model.createRule();
   night_and_on_rule.name = `${prefix} - night and on`;
-  night_and_on_rule.recycle = true;
+  night_and_on_rule.recycle = false;
 
   night_and_on_rule.addCondition(
     hue.model.ruleConditions
@@ -508,7 +508,7 @@ function setupKitchenSensorRules(
 
   const late_night_and_on_rule = hue.model.createRule();
   late_night_and_on_rule.name = `${prefix} - l8 night and on`;
-  late_night_and_on_rule.recycle = true;
+  late_night_and_on_rule.recycle = false;
 
   late_night_and_on_rule.addCondition(
     hue.model.ruleConditions
@@ -565,7 +565,7 @@ function setupHallwaySensorRules(
 
   const day_and_on_rule = hue.model.createRule();
   day_and_on_rule.name = `${prefix} - day and on`;
-  day_and_on_rule.recycle = true;
+  day_and_on_rule.recycle = false;
 
   day_and_on_rule.addCondition(
     hue.model.ruleConditions
@@ -598,7 +598,7 @@ function setupHallwaySensorRules(
 
   const night_and_on_rule = hue.model.createRule();
   night_and_on_rule.name = `${prefix} - night and on`;
-  night_and_on_rule.recycle = true;
+  night_and_on_rule.recycle = false;
 
   night_and_on_rule.addCondition(
     hue.model.ruleConditions
@@ -638,7 +638,7 @@ function setupHallwaySensorRules(
 
   const late_night_and_on_rule = hue.model.createRule();
   late_night_and_on_rule.name = `${prefix} - l8 night and on`;
-  late_night_and_on_rule.recycle = true;
+  late_night_and_on_rule.recycle = false;
 
   late_night_and_on_rule.addCondition(
     hue.model.ruleConditions
@@ -697,7 +697,7 @@ function setupLivingroomSensorRules(
 
   const day_and_on_rule = hue.model.createRule();
   day_and_on_rule.name = `${prefix} - day and on`;
-  day_and_on_rule.recycle = true;
+  day_and_on_rule.recycle = false;
 
   day_and_on_rule.addCondition(
     hue.model.ruleConditions
@@ -730,7 +730,7 @@ function setupLivingroomSensorRules(
 
   const night_and_on_rule = hue.model.createRule();
   night_and_on_rule.name = `${prefix} - night and on`;
-  night_and_on_rule.recycle = true;
+  night_and_on_rule.recycle = false;
 
   night_and_on_rule.addCondition(
     hue.model.ruleConditions
@@ -775,7 +775,7 @@ function setupLateNightStatus(
 
   const not_late_night_rule = hue.model.createRule();
   not_late_night_rule.name = `${prefix} - not l8 night`;
-  not_late_night_rule.recycle = true;
+  not_late_night_rule.recycle = false;
 
   const notLateNightCondition = new model.RuleCondition({
     address: "/config/localtime",
@@ -795,7 +795,7 @@ function setupLateNightStatus(
 
   const late_night_rule = hue.model.createRule();
   late_night_rule.name = `${prefix} - l8 night`;
-  late_night_rule.recycle = true;
+  late_night_rule.recycle = false;
 
   const lateNightCondition = new model.RuleCondition({
     address: "/config/localtime",
@@ -815,7 +815,7 @@ function setupLateNightStatus(
 
   const dimmer_switch_armed_rule = hue.model.createRule();
   dimmer_switch_armed_rule.name = `${prefix} - dimmer armed`;
-  dimmer_switch_armed_rule.recycle = true;
+  dimmer_switch_armed_rule.recycle = false;
 
   dimmer_switch_armed_rule.addCondition(
     hue.model.ruleConditions
@@ -847,7 +847,7 @@ function setupLateNightStatus(
 
   const dimmer_switch_late_night_rule = hue.model.createRule();
   dimmer_switch_late_night_rule.name = `${prefix} - dimmer l8`;
-  dimmer_switch_late_night_rule.recycle = true;
+  dimmer_switch_late_night_rule.recycle = false;
 
   dimmer_switch_late_night_rule.addCondition(
     hue.model.ruleConditions
@@ -896,11 +896,11 @@ async function createRules(api: Api, rules: model.Rule[]) {
 
 function setupAllOff(groups: MyGroups, sensors: MySensors) {
   const rules: model.Rule[] = [];
-  const prefix = "late night status";
+  const prefix = "all off";
 
   const dimmer_switch_late_night_rule = hue.model.createRule();
-  dimmer_switch_late_night_rule.name = `${prefix} - dimmer l8`;
-  dimmer_switch_late_night_rule.recycle = true;
+  dimmer_switch_late_night_rule.name = `${prefix} - off long`;
+  dimmer_switch_late_night_rule.recycle = false;
 
   dimmer_switch_late_night_rule.addCondition(
     hue.model.ruleConditions
