@@ -713,7 +713,7 @@ function setupLivingroomSensorRules(
 
   day_and_on_rule.addAction(
     hue.model.actions
-      .group(groups.Hallway)
+      .group(groups["Living room"])
       .withState({ scene: known_scenes.livingroom_bright })
   );
   day_and_on_rule.addAction(
