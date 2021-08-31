@@ -220,7 +220,8 @@ function motionSensorBaseRules(
   status_sensor: model.CLIPGenericStatus,
   presence: model.Sensor,
   light_level: model.Sensor,
-  group: string | number | model.Group
+  group: string | number | model.Group,
+  dim_delay: any
 ) {
   const presence_on_rule = hue.model.createRule();
   presence_on_rule.name = `${prefix} - presence on`;
@@ -288,7 +289,7 @@ function motionSensorBaseRules(
     hue.model.ruleConditions
       .sensor(status_sensor)
       .when("status")
-      .changedDelayed("PT00:04:00" as any)
+      .changedDelayed(dim_delay)
   );
   dim_status_rule.addCondition(
     hue.model.ruleConditions.sensor(presence).when("presence").equals(false)
@@ -317,7 +318,7 @@ function motionSensorBaseRules(
     hue.model.ruleConditions
       .sensor(presence)
       .when("presence")
-      .changedDelayed("PT00:04:00" as any)
+      .changedDelayed(dim_delay)
   );
   dim_presence_rule.addCondition(
     hue.model.ruleConditions.sensor(presence).when("presence").equals(false)
@@ -427,7 +428,8 @@ function setupKitchenSensorRules(
     status_sensor,
     sensors.kitchen_presence,
     sensors.kitchen_light_level,
-    groups.Kök
+    groups.Kök,
+    "PT00:20:00"
   );
 
   const day_and_on_rule = hue.model.createRule();
@@ -557,7 +559,8 @@ function setupHallwaySensorRules(
     status_sensor,
     sensors.hallway_presence,
     sensors.hallway_light_level,
-    groups.Hallway
+    groups.Hallway,
+    "PT00:04:00"
   );
 
   const day_and_on_rule = hue.model.createRule();
@@ -688,7 +691,8 @@ function setupLivingroomSensorRules(
     status_sensor,
     sensors.livingroom_presence,
     sensors.livingroom_light_level,
-    groups["Living room"]
+    groups["Living room"],
+    "PT01:00:00"
   );
 
   const day_and_on_rule = hue.model.createRule();
