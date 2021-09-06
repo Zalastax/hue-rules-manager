@@ -62,10 +62,12 @@ let sensor_id_index = 0;
 const known_scenes = {
   kitchen_very_bright: "Dy4JnbnTdD9GOu7",
   kitchen_dimmed: "1Fhe-qar2rOf-6D",
+  kitchen_nightlight: "PzTl0lm1Xn4nzHM",
   hallway_very_dimmed: "bmTK0pTtYUAJlGw",
   hallway_semi_bright: "JtPUJRpFv2LVJvq",
   livingroom_bright: "DqXCpluUaZh7Rnd",
   livingroom_osaka: "PhDFbG2LYtXnB2J",
+  livingroom_relax: "MaGOnFXSzZjebjP",
 };
 
 async function getApi() {
@@ -184,6 +186,20 @@ function setupLateNightRuleStatusSensor(api: Api, name: string) {
   });
 }
 
+function setupDimmingSensor(api: Api, name: string) {
+  return setupSensor(api, hue.model.createCLIPGenericStatusSensor, (x) => {
+    x.status = DimmingLevel.NEUTRAL;
+    x.name = name;
+  });
+}
+
+function setupActivityStatusSensor(api: Api, name: string) {
+  return setupSensor(api, hue.model.createCLIPGenericStatusSensor, (x) => {
+    x.status = ActivityStatus.NORMAL;
+    x.name = name;
+  });
+}
+
 enum MotionRuleStatus {
   ARMED = 0,
   SHOULD_TRIGGER_SCENE = 1,
@@ -215,13 +231,27 @@ enum DimmerAction {
   OFF_BUTTON_LONG_RELEASED = 4003,
 }
 
+enum DimmingLevel {
+  VERY_DIMMED = 4,
+  DIMMED = 3,
+  NEUTRAL = 0,
+  BRIGHT = 1,
+  VERY_BRIGHT = 2,
+}
+
+enum ActivityStatus {
+  NORMAL = 0,
+  RELAX = 1,
+}
+
 function motionSensorBaseRules(
   prefix: string,
   status_sensor: model.CLIPGenericStatus,
   presence: model.Sensor,
   light_level: model.Sensor,
   group: string | number | model.Group,
-  dim_delay: any
+  dim_delay: any,
+  dimming_sensor: model.CLIPGenericStatus
 ) {
   const presence_on_rule = hue.model.createRule();
   presence_on_rule.name = `${prefix} - presence on`;
@@ -266,13 +296,115 @@ function motionSensorBaseRules(
     hue.model.ruleConditions.sensor(presence).when("presence").equals(true)
   );
   dark_on_rule.addCondition(
-    hue.model.ruleConditions.sensor(light_level).when("dark").changed()
+    hue.model.ruleConditions.sensor(presence).when("presence").changed()
   );
 
   dark_on_rule.addAction(
     hue.model.actions
       .sensor(status_sensor)
       .withState({ status: MotionRuleStatus.SHOULD_TRIGGER_SCENE })
+  );
+
+  const dimming_bright = hue.model.createRule();
+  dimming_bright.name = `${prefix} - dim lvl bright`;
+  dimming_bright.recycle = true;
+
+  dimming_bright.addCondition(
+    hue.model.ruleConditions
+      .sensor(status_sensor)
+      .when("status")
+      .equals(MotionRuleStatus.SCENE_TRIGGERED)
+  );
+  dimming_bright.addCondition(
+    hue.model.ruleConditions
+      .sensor(dimming_sensor)
+      .when("status")
+      .equals(DimmingLevel.BRIGHT)
+  );
+  dimming_bright.addCondition(
+    hue.model.ruleConditions.sensor(status_sensor).when("lastupdated").changed()
+  );
+  dimming_bright.addAction(
+    hue.model.actions
+      .group(group)
+      .withState({ bri_inc: "35", transitiontime: 3 })
+  );
+
+  const dimming_very_bright = hue.model.createRule();
+  dimming_very_bright.name = `${prefix} - dimming vb`;
+  dimming_very_bright.recycle = true;
+
+  dimming_very_bright.addCondition(
+    hue.model.ruleConditions
+      .sensor(status_sensor)
+      .when("status")
+      .equals(MotionRuleStatus.SCENE_TRIGGERED)
+  );
+  dimming_very_bright.addCondition(
+    hue.model.ruleConditions
+      .sensor(dimming_sensor)
+      .when("status")
+      .equals(DimmingLevel.VERY_BRIGHT)
+  );
+  dimming_very_bright.addCondition(
+    hue.model.ruleConditions.sensor(status_sensor).when("lastupdated").changed()
+  );
+  dimming_very_bright.addAction(
+    hue.model.actions
+      .group(group)
+      .withState({ bri_inc: "128", transitiontime: 3 })
+  );
+
+  const dimming_dimmed = hue.model.createRule();
+  dimming_dimmed.name = `${prefix} - dim lvl dimmed`;
+  dimming_dimmed.recycle = true;
+
+  dimming_dimmed.addCondition(
+    hue.model.ruleConditions
+      .sensor(status_sensor)
+      .when("status")
+      .equals(MotionRuleStatus.SCENE_TRIGGERED)
+  );
+  dimming_dimmed.addCondition(
+    hue.model.ruleConditions.sensor(status_sensor).when("lastupdated").changed()
+  );
+  dimming_dimmed.addCondition(
+    hue.model.ruleConditions
+      .sensor(dimming_sensor)
+      .when("status")
+      .equals(DimmingLevel.DIMMED)
+  );
+
+  dimming_dimmed.addAction(
+    hue.model.actions
+      .group(group)
+      .withState({ bri_inc: "-35", transitiontime: 3 })
+  );
+
+  const dimming_very_dimmed = hue.model.createRule();
+  dimming_very_dimmed.name = `${prefix} - dim lvl vd`;
+  dimming_very_dimmed.recycle = true;
+
+  dimming_very_dimmed.addCondition(
+    hue.model.ruleConditions
+      .sensor(status_sensor)
+      .when("status")
+      .equals(MotionRuleStatus.SCENE_TRIGGERED)
+  );
+  dimming_very_dimmed.addCondition(
+    hue.model.ruleConditions.sensor(status_sensor).when("lastupdated").changed()
+  );
+  dimming_very_dimmed.addCondition(
+    hue.model.ruleConditions
+      .sensor(dimming_sensor)
+      .when("status")
+      .equals(DimmingLevel.VERY_DIMMED)
+  );
+
+  dimming_very_dimmed.addAction(
+    hue.model.actions
+      .group(group)
+      .withState({ bri_inc: "-128", transitiontime: 3 })
   );
 
   const dim_status_rule = hue.model.createRule();
@@ -390,12 +522,6 @@ function motionSensorBaseRules(
     hue.model.ruleConditions.sensor(presence).when("presence").equals(false)
   );
   arm_rule.addCondition(
-    hue.model.ruleConditions
-      .sensor(status_sensor)
-      .when("status")
-      .equals(MotionRuleStatus.DIMMED)
-  );
-  arm_rule.addCondition(
     hue.model.ruleConditions.group(group).when().anyOn().equals(false)
   );
 
@@ -413,6 +539,10 @@ function motionSensorBaseRules(
     recover_rule,
     off_rule,
     arm_rule,
+    dimming_very_bright,
+    dimming_bright,
+    dimming_dimmed,
+    dimming_very_dimmed,
   ];
 }
 
@@ -420,7 +550,8 @@ function setupKitchenSensorRules(
   status_sensor: model.CLIPGenericStatus,
   late_night_status_sensor: model.CLIPGenericStatus,
   groups: MyGroups,
-  sensors: MySensors
+  sensors: MySensors,
+  dimming_sensor: model.CLIPGenericStatus
 ) {
   const prefix = "Kitchen sensor";
   const rules = motionSensorBaseRules(
@@ -429,7 +560,8 @@ function setupKitchenSensorRules(
     sensors.kitchen_presence,
     sensors.kitchen_light_level,
     groups.Kök,
-    "PT00:20:00"
+    "PT00:20:00",
+    dimming_sensor
   );
 
   const day_and_on_rule = hue.model.createRule();
@@ -443,7 +575,7 @@ function setupKitchenSensorRules(
       .equals(MotionRuleStatus.SHOULD_TRIGGER_SCENE)
   );
   day_and_on_rule.addCondition(
-    hue.model.ruleConditions.sensor(status_sensor).when("status").changed()
+    hue.model.ruleConditions.sensor(status_sensor).when("lastupdated").changed()
   );
   day_and_on_rule.addCondition(
     hue.model.ruleConditions
@@ -453,9 +585,10 @@ function setupKitchenSensorRules(
   );
 
   day_and_on_rule.addAction(
-    hue.model.actions
-      .group(groups.Kök)
-      .withState({ scene: known_scenes.kitchen_very_bright })
+    hue.model.actions.group(groups.Kök).withState({
+      scene: known_scenes.kitchen_very_bright,
+      transitiontime: 10,
+    })
   );
   day_and_on_rule.addAction(
     hue.model.actions
@@ -476,7 +609,7 @@ function setupKitchenSensorRules(
       .equals(MotionRuleStatus.SHOULD_TRIGGER_SCENE)
   );
   night_and_on_rule.addCondition(
-    hue.model.ruleConditions.sensor(status_sensor).when("status").changed()
+    hue.model.ruleConditions.sensor(status_sensor).when("lastupdated").changed()
   );
 
   night_and_on_rule.addCondition(
@@ -496,7 +629,7 @@ function setupKitchenSensorRules(
   night_and_on_rule.addAction(
     hue.model.actions
       .group(groups.Kök)
-      .withState({ scene: known_scenes.kitchen_dimmed })
+      .withState({ scene: known_scenes.kitchen_dimmed, transitiontime: 10 })
   );
   night_and_on_rule.addAction(
     hue.model.actions
@@ -517,7 +650,7 @@ function setupKitchenSensorRules(
       .equals(MotionRuleStatus.SHOULD_TRIGGER_SCENE)
   );
   late_night_and_on_rule.addCondition(
-    hue.model.ruleConditions.sensor(status_sensor).when("status").changed()
+    hue.model.ruleConditions.sensor(status_sensor).when("lastupdated").changed()
   );
 
   late_night_and_on_rule.addCondition(
@@ -534,7 +667,9 @@ function setupKitchenSensorRules(
   );
 
   late_night_and_on_rule.addAction(
-    hue.model.actions.group(groups.Kök).withState({ scene: "PzTl0lm1Xn4nzHM" })
+    hue.model.actions
+      .group(groups.Kök)
+      .withState({ scene: known_scenes.kitchen_nightlight, transitiontime: 10 })
   );
   late_night_and_on_rule.addAction(
     hue.model.actions
@@ -551,7 +686,8 @@ function setupHallwaySensorRules(
   status_sensor: model.CLIPGenericStatus,
   late_night_status_sensor: model.CLIPGenericStatus,
   groups: MyGroups,
-  sensors: MySensors
+  sensors: MySensors,
+  dimming_sensor: model.CLIPGenericStatus
 ) {
   const prefix = "Hall sensor";
   const rules = motionSensorBaseRules(
@@ -560,7 +696,8 @@ function setupHallwaySensorRules(
     sensors.hallway_presence,
     sensors.hallway_light_level,
     groups.Hallway,
-    "PT00:04:00"
+    "PT00:04:00",
+    dimming_sensor
   );
 
   const day_and_on_rule = hue.model.createRule();
@@ -574,7 +711,7 @@ function setupHallwaySensorRules(
       .equals(MotionRuleStatus.SHOULD_TRIGGER_SCENE)
   );
   day_and_on_rule.addCondition(
-    hue.model.ruleConditions.sensor(status_sensor).when("status").changed()
+    hue.model.ruleConditions.sensor(status_sensor).when("lastupdated").changed()
   );
   day_and_on_rule.addCondition(
     hue.model.ruleConditions
@@ -584,9 +721,10 @@ function setupHallwaySensorRules(
   );
 
   day_and_on_rule.addAction(
-    hue.model.actions
-      .group(groups.Hallway)
-      .withState({ scene: known_scenes.hallway_semi_bright })
+    hue.model.actions.group(groups.Hallway).withState({
+      scene: known_scenes.hallway_semi_bright,
+      transitiontime: 10,
+    })
   );
   day_and_on_rule.addAction(
     hue.model.actions
@@ -607,7 +745,7 @@ function setupHallwaySensorRules(
       .equals(MotionRuleStatus.SHOULD_TRIGGER_SCENE)
   );
   night_and_on_rule.addCondition(
-    hue.model.ruleConditions.sensor(status_sensor).when("status").changed()
+    hue.model.ruleConditions.sensor(status_sensor).when("lastupdated").changed()
   );
 
   night_and_on_rule.addCondition(
@@ -624,9 +762,11 @@ function setupHallwaySensorRules(
   );
 
   night_and_on_rule.addAction(
-    hue.model.actions
-      .group(groups.Hallway)
-      .withState({ scene: known_scenes.hallway_semi_bright, bri_inc: "-20" })
+    hue.model.actions.group(groups.Hallway).withState({
+      scene: known_scenes.hallway_semi_bright,
+      bri_inc: "-50",
+      transitiontime: 10,
+    })
   );
   night_and_on_rule.addAction(
     hue.model.actions
@@ -647,7 +787,7 @@ function setupHallwaySensorRules(
       .equals(MotionRuleStatus.SHOULD_TRIGGER_SCENE)
   );
   late_night_and_on_rule.addCondition(
-    hue.model.ruleConditions.sensor(status_sensor).when("status").changed()
+    hue.model.ruleConditions.sensor(status_sensor).when("lastupdated").changed()
   );
   late_night_and_on_rule.addCondition(
     hue.model.ruleConditions
@@ -664,9 +804,10 @@ function setupHallwaySensorRules(
   );
 
   late_night_and_on_rule.addAction(
-    hue.model.actions
-      .group(groups.Hallway)
-      .withState({ scene: known_scenes.hallway_very_dimmed })
+    hue.model.actions.group(groups.Hallway).withState({
+      scene: known_scenes.hallway_very_dimmed,
+      transitiontime: 10,
+    })
   );
 
   late_night_and_on_rule.addAction(
@@ -683,7 +824,9 @@ function setupHallwaySensorRules(
 function setupLivingroomSensorRules(
   status_sensor: model.CLIPGenericStatus,
   groups: MyGroups,
-  sensors: MySensors
+  sensors: MySensors,
+  dimming_sensor: model.CLIPGenericStatus,
+  activity_sensor: model.CLIPGenericStatus
 ) {
   const prefix = "LivRo sensor";
   const rules = motionSensorBaseRules(
@@ -692,7 +835,8 @@ function setupLivingroomSensorRules(
     sensors.livingroom_presence,
     sensors.livingroom_light_level,
     groups["Living room"],
-    "PT01:00:00"
+    "PT01:00:00",
+    dimming_sensor
   );
 
   const day_and_on_rule = hue.model.createRule();
@@ -706,7 +850,7 @@ function setupLivingroomSensorRules(
       .equals(MotionRuleStatus.SHOULD_TRIGGER_SCENE)
   );
   day_and_on_rule.addCondition(
-    hue.model.ruleConditions.sensor(status_sensor).when("status").changed()
+    hue.model.ruleConditions.sensor(status_sensor).when("lastupdated").changed()
   );
   day_and_on_rule.addCondition(
     hue.model.ruleConditions
@@ -716,9 +860,10 @@ function setupLivingroomSensorRules(
   );
 
   day_and_on_rule.addAction(
-    hue.model.actions
-      .group(groups["Living room"])
-      .withState({ scene: known_scenes.livingroom_bright })
+    hue.model.actions.group(groups["Living room"]).withState({
+      scene: known_scenes.livingroom_bright,
+      transitiontime: 10,
+    })
   );
   day_and_on_rule.addAction(
     hue.model.actions
@@ -728,46 +873,93 @@ function setupLivingroomSensorRules(
 
   rules.push(day_and_on_rule);
 
-  const night_and_on_rule = hue.model.createRule();
-  night_and_on_rule.name = `${prefix} - night and on`;
-  night_and_on_rule.recycle = false;
+  const night_and_on_normal_rule = hue.model.createRule();
+  night_and_on_normal_rule.name = `${prefix} - night and on N`;
+  night_and_on_normal_rule.recycle = false;
 
-  night_and_on_rule.addCondition(
+  night_and_on_normal_rule.addCondition(
     hue.model.ruleConditions
       .sensor(status_sensor)
       .when("status")
       .equals(MotionRuleStatus.SHOULD_TRIGGER_SCENE)
   );
-  night_and_on_rule.addCondition(
-    hue.model.ruleConditions.sensor(status_sensor).when("status").changed()
+  night_and_on_normal_rule.addCondition(
+    hue.model.ruleConditions
+      .sensor(activity_sensor)
+      .when("status")
+      .equals(ActivityStatus.NORMAL)
+  );
+  night_and_on_normal_rule.addCondition(
+    hue.model.ruleConditions.sensor(status_sensor).when("lastupdated").changed()
   );
 
-  night_and_on_rule.addCondition(
+  night_and_on_normal_rule.addCondition(
     hue.model.ruleConditions
       .sensor(sensors.builtin_daylight)
       .when("daylight")
       .equals(false)
   );
 
-  night_and_on_rule.addAction(
+  night_and_on_normal_rule.addAction(
     hue.model.actions
       .group(groups["Living room"])
-      .withState({ scene: known_scenes.livingroom_osaka })
+      .withState({ scene: known_scenes.livingroom_osaka, transitiontime: 10 })
   );
-  night_and_on_rule.addAction(
+  night_and_on_normal_rule.addAction(
     hue.model.actions
       .sensor(status_sensor)
       .withState({ status: MotionRuleStatus.SCENE_TRIGGERED })
   );
 
-  rules.push(night_and_on_rule);
+  rules.push(night_and_on_normal_rule);
+
+  const night_and_on_relax_rule = hue.model.createRule();
+  night_and_on_relax_rule.name = `${prefix} - night and on R`;
+  night_and_on_relax_rule.recycle = false;
+
+  night_and_on_relax_rule.addCondition(
+    hue.model.ruleConditions
+      .sensor(status_sensor)
+      .when("status")
+      .equals(MotionRuleStatus.SHOULD_TRIGGER_SCENE)
+  );
+  night_and_on_relax_rule.addCondition(
+    hue.model.ruleConditions
+      .sensor(activity_sensor)
+      .when("status")
+      .equals(ActivityStatus.RELAX)
+  );
+  night_and_on_relax_rule.addCondition(
+    hue.model.ruleConditions.sensor(status_sensor).when("lastupdated").changed()
+  );
+
+  night_and_on_relax_rule.addCondition(
+    hue.model.ruleConditions
+      .sensor(sensors.builtin_daylight)
+      .when("daylight")
+      .equals(false)
+  );
+
+  night_and_on_relax_rule.addAction(
+    hue.model.actions
+      .group(groups["Living room"])
+      .withState({ scene: known_scenes.livingroom_relax, transitiontime: 10 })
+  );
+  night_and_on_relax_rule.addAction(
+    hue.model.actions
+      .sensor(status_sensor)
+      .withState({ status: MotionRuleStatus.SCENE_TRIGGERED })
+  );
+
+  rules.push(night_and_on_relax_rule);
 
   return rules;
 }
 
 function setupLateNightStatus(
   late_night_status_sensor: model.CLIPGenericStatus,
-  sensors: MySensors
+  sensors: MySensors,
+  status_sensors: model.CLIPGenericStatus[]
 ) {
   const rules: model.Rule[] = [];
   const prefix = "late night status";
@@ -877,6 +1069,37 @@ function setupLateNightStatus(
 
   rules.push(dimmer_switch_late_night_rule);
 
+  let retrigger_count = 0;
+
+  for (const status_sensor of status_sensors) {
+    const retrigger_scene = hue.model.createRule();
+    retrigger_scene.name = `${prefix} - retrigger ${retrigger_count}`;
+    retrigger_scene.recycle = false;
+    retrigger_count = retrigger_count + 1;
+
+    retrigger_scene.addCondition(
+      hue.model.ruleConditions
+        .sensor(late_night_status_sensor)
+        .when("lastupdated")
+        .changed()
+    );
+
+    retrigger_scene.addCondition(
+      hue.model.ruleConditions
+        .sensor(status_sensor)
+        .when("status")
+        .equals(MotionRuleStatus.SCENE_TRIGGERED)
+    );
+
+    retrigger_scene.addAction(
+      hue.model.actions
+        .sensor(status_sensor)
+        .withState({ status: MotionRuleStatus.SHOULD_TRIGGER_SCENE })
+    );
+
+    rules.push(retrigger_scene);
+  }
+
   return rules;
 }
 
@@ -894,32 +1117,463 @@ async function createRules(api: Api, rules: model.Rule[]) {
   }
 }
 
-function setupAllOff(groups: MyGroups, sensors: MySensors) {
+function setupActivity(
+  sensors: MySensors,
+  activity_sensor: model.CLIPGenericStatus,
+  status_sensors: model.CLIPGenericStatus[]
+) {
   const rules: model.Rule[] = [];
-  const prefix = "all off";
+  const prefix = "activity";
 
-  const dimmer_switch_late_night_rule = hue.model.createRule();
-  dimmer_switch_late_night_rule.name = `${prefix} - off long`;
-  dimmer_switch_late_night_rule.recycle = false;
+  const from_normal_rule = hue.model.createRule();
+  from_normal_rule.name = `${prefix} - from normal`;
+  from_normal_rule.recycle = false;
 
-  dimmer_switch_late_night_rule.addCondition(
+  from_normal_rule.addCondition(
+    hue.model.ruleConditions
+      .sensor(activity_sensor)
+      .when("status")
+      .equals(ActivityStatus.NORMAL)
+  );
+  from_normal_rule.addCondition(
     hue.model.ruleConditions
       .sensor(sensors.dimmer_switch)
       .when("buttonevent")
-      .equals(DimmerAction.OFF_BUTTON_LONG_RELEASED)
+      .equals(DimmerAction.ON_BUTTON_SHORT_RELEASED)
   );
-  dimmer_switch_late_night_rule.addCondition(
+  from_normal_rule.addCondition(
     hue.model.ruleConditions
       .sensor(sensors.dimmer_switch)
       .when("buttonevent")
       .changed()
   );
 
-  dimmer_switch_late_night_rule.addAction(
+  from_normal_rule.addAction(
+    hue.model.actions
+      .sensor(activity_sensor)
+      .withState({ status: ActivityStatus.RELAX })
+  );
+
+  rules.push(from_normal_rule);
+
+  const from_relax_rule = hue.model.createRule();
+  from_relax_rule.name = `${prefix} - from relax`;
+  from_relax_rule.recycle = false;
+
+  from_relax_rule.addCondition(
+    hue.model.ruleConditions
+      .sensor(activity_sensor)
+      .when("status")
+      .equals(ActivityStatus.RELAX)
+  );
+  from_relax_rule.addCondition(
+    hue.model.ruleConditions
+      .sensor(sensors.dimmer_switch)
+      .when("buttonevent")
+      .equals(DimmerAction.ON_BUTTON_SHORT_RELEASED)
+  );
+  from_relax_rule.addCondition(
+    hue.model.ruleConditions
+      .sensor(sensors.dimmer_switch)
+      .when("buttonevent")
+      .changed()
+  );
+
+  from_relax_rule.addAction(
+    hue.model.actions
+      .sensor(activity_sensor)
+      .withState({ status: ActivityStatus.NORMAL })
+  );
+
+  rules.push(from_relax_rule);
+
+  let retrigger_count = 0;
+
+  for (const status_sensor of status_sensors) {
+    const retrigger_scene = hue.model.createRule();
+    retrigger_scene.name = `${prefix} - retrigger ${retrigger_count}`;
+    retrigger_scene.recycle = false;
+    retrigger_count = retrigger_count + 1;
+
+    retrigger_scene.addCondition(
+      hue.model.ruleConditions
+        .sensor(activity_sensor)
+        .when("lastupdated")
+        .changed()
+    );
+
+    retrigger_scene.addCondition(
+      hue.model.ruleConditions
+        .sensor(status_sensor)
+        .when("status")
+        .equals(MotionRuleStatus.SCENE_TRIGGERED)
+    );
+
+    retrigger_scene.addAction(
+      hue.model.actions
+        .sensor(status_sensor)
+        .withState({ status: MotionRuleStatus.SHOULD_TRIGGER_SCENE })
+    );
+
+    rules.push(retrigger_scene);
+  }
+
+  return rules;
+}
+
+function setupAllOff(
+  groups: MyGroups,
+  sensors: MySensors,
+  dimming_sensor: model.CLIPGenericStatus,
+  activity_sensor: model.CLIPGenericStatus
+) {
+  const rules: model.Rule[] = [];
+  const prefix = "all off";
+
+  const dimmer_switch_off_long_rule = hue.model.createRule();
+  dimmer_switch_off_long_rule.name = `${prefix} - off press`;
+  dimmer_switch_off_long_rule.recycle = false;
+
+  dimmer_switch_off_long_rule.addCondition(
+    hue.model.ruleConditions
+      .sensor(sensors.dimmer_switch)
+      .when("buttonevent")
+      .equals(DimmerAction.OFF_BUTTON_LONG_RELEASED)
+  );
+  dimmer_switch_off_long_rule.addCondition(
+    hue.model.ruleConditions
+      .sensor(sensors.dimmer_switch)
+      .when("buttonevent")
+      .changed()
+  );
+
+  dimmer_switch_off_long_rule.addAction(
     hue.model.actions.group(groups["Group 0"]).withState({ on: false })
   );
 
-  rules.push(dimmer_switch_late_night_rule);
+  rules.push(dimmer_switch_off_long_rule);
+
+  const off_long_time_rule = hue.model.createRule();
+  off_long_time_rule.name = `${prefix} - off time`;
+  off_long_time_rule.recycle = false;
+
+  off_long_time_rule.addCondition(
+    hue.model.ruleConditions
+      .group(groups["Group 0"])
+      .when()
+      .anyOn()
+      .equals(false)
+  );
+  off_long_time_rule.addCondition(
+    hue.model.ruleConditions
+      .group(groups["Group 0"])
+      .when()
+      .anyOn()
+      .changedDelayed("PT00:05:30" as any)
+  );
+
+  off_long_time_rule.addAction(
+    hue.model.actions
+      .sensor(dimming_sensor)
+      .withState({ status: DimmingLevel.NEUTRAL })
+  );
+  off_long_time_rule.addAction(
+    hue.model.actions
+      .sensor(activity_sensor)
+      .withState({ status: ActivityStatus.NORMAL })
+  );
+
+  rules.push(off_long_time_rule);
+
+  return rules;
+}
+
+function setupDimming(
+  sensors: MySensors,
+  dimming_sensor: model.CLIPGenericStatus,
+  status_sensors: model.CLIPGenericStatus[]
+) {
+  const rules: model.Rule[] = [];
+  const prefix = "dimming status";
+
+  const neutral_down_rule = hue.model.createRule();
+  neutral_down_rule.name = `${prefix} - neutral down`;
+  neutral_down_rule.recycle = false;
+
+  neutral_down_rule.addCondition(
+    hue.model.ruleConditions
+      .sensor(sensors.dimmer_switch)
+      .when("buttonevent")
+      .equals(DimmerAction.DIM_DOWN_BUTTON_SHORT_RELEASED)
+  );
+  neutral_down_rule.addCondition(
+    hue.model.ruleConditions
+      .sensor(dimming_sensor)
+      .when("status")
+      .equals(DimmingLevel.NEUTRAL)
+  );
+  neutral_down_rule.addCondition(
+    hue.model.ruleConditions
+      .sensor(sensors.dimmer_switch)
+      .when("buttonevent")
+      .changed()
+  );
+
+  neutral_down_rule.addAction(
+    hue.model.actions
+      .sensor(dimming_sensor)
+      .withState({ status: DimmingLevel.DIMMED })
+  );
+
+  rules.push(neutral_down_rule);
+
+  const dimmed_down = hue.model.createRule();
+  dimmed_down.name = `${prefix} - dimmed down`;
+  dimmed_down.recycle = false;
+
+  dimmed_down.addCondition(
+    hue.model.ruleConditions
+      .sensor(sensors.dimmer_switch)
+      .when("buttonevent")
+      .equals(DimmerAction.DIM_DOWN_BUTTON_SHORT_RELEASED)
+  );
+  dimmed_down.addCondition(
+    hue.model.ruleConditions
+      .sensor(dimming_sensor)
+      .when("status")
+      .equals(DimmingLevel.DIMMED)
+  );
+  dimmed_down.addCondition(
+    hue.model.ruleConditions
+      .sensor(sensors.dimmer_switch)
+      .when("buttonevent")
+      .changed()
+  );
+
+  dimmed_down.addAction(
+    hue.model.actions
+      .sensor(dimming_sensor)
+      .withState({ status: DimmingLevel.VERY_DIMMED })
+  );
+
+  rules.push(dimmed_down);
+
+  const very_dimmed_up = hue.model.createRule();
+  very_dimmed_up.name = `${prefix} - very dimmed up`;
+  very_dimmed_up.recycle = false;
+
+  very_dimmed_up.addCondition(
+    hue.model.ruleConditions
+      .sensor(sensors.dimmer_switch)
+      .when("buttonevent")
+      .equals(DimmerAction.DIM_UP_BUTTON_SHORT_RELEASED)
+  );
+  very_dimmed_up.addCondition(
+    hue.model.ruleConditions
+      .sensor(dimming_sensor)
+      .when("status")
+      .equals(DimmingLevel.VERY_DIMMED)
+  );
+  very_dimmed_up.addCondition(
+    hue.model.ruleConditions
+      .sensor(sensors.dimmer_switch)
+      .when("buttonevent")
+      .changed()
+  );
+
+  very_dimmed_up.addAction(
+    hue.model.actions
+      .sensor(dimming_sensor)
+      .withState({ status: DimmingLevel.DIMMED })
+  );
+
+  rules.push(very_dimmed_up);
+
+  const dimmed_up = hue.model.createRule();
+  dimmed_up.name = `${prefix} - dimmed up`;
+  dimmed_up.recycle = false;
+
+  dimmed_up.addCondition(
+    hue.model.ruleConditions
+      .sensor(sensors.dimmer_switch)
+      .when("buttonevent")
+      .equals(DimmerAction.DIM_UP_BUTTON_SHORT_RELEASED)
+  );
+  dimmed_up.addCondition(
+    hue.model.ruleConditions
+      .sensor(dimming_sensor)
+      .when("status")
+      .equals(DimmingLevel.DIMMED)
+  );
+  dimmed_up.addCondition(
+    hue.model.ruleConditions
+      .sensor(sensors.dimmer_switch)
+      .when("buttonevent")
+      .changed()
+  );
+
+  dimmed_up.addAction(
+    hue.model.actions
+      .sensor(dimming_sensor)
+      .withState({ status: DimmingLevel.NEUTRAL })
+  );
+
+  rules.push(dimmed_up);
+
+  const neutral_up = hue.model.createRule();
+  neutral_up.name = `${prefix} - neutral up`;
+  neutral_up.recycle = false;
+
+  neutral_up.addCondition(
+    hue.model.ruleConditions
+      .sensor(sensors.dimmer_switch)
+      .when("buttonevent")
+      .equals(DimmerAction.DIM_UP_BUTTON_SHORT_RELEASED)
+  );
+  neutral_up.addCondition(
+    hue.model.ruleConditions
+      .sensor(dimming_sensor)
+      .when("status")
+      .equals(DimmingLevel.NEUTRAL)
+  );
+  neutral_up.addCondition(
+    hue.model.ruleConditions
+      .sensor(sensors.dimmer_switch)
+      .when("buttonevent")
+      .changed()
+  );
+
+  neutral_up.addAction(
+    hue.model.actions
+      .sensor(dimming_sensor)
+      .withState({ status: DimmingLevel.BRIGHT })
+  );
+
+  rules.push(neutral_up);
+
+  const bright_up = hue.model.createRule();
+  bright_up.name = `${prefix} - bright up`;
+  bright_up.recycle = false;
+
+  bright_up.addCondition(
+    hue.model.ruleConditions
+      .sensor(sensors.dimmer_switch)
+      .when("buttonevent")
+      .equals(DimmerAction.DIM_UP_BUTTON_SHORT_RELEASED)
+  );
+  bright_up.addCondition(
+    hue.model.ruleConditions
+      .sensor(dimming_sensor)
+      .when("status")
+      .equals(DimmingLevel.BRIGHT)
+  );
+  bright_up.addCondition(
+    hue.model.ruleConditions
+      .sensor(sensors.dimmer_switch)
+      .when("buttonevent")
+      .changed()
+  );
+
+  bright_up.addAction(
+    hue.model.actions
+      .sensor(dimming_sensor)
+      .withState({ status: DimmingLevel.VERY_BRIGHT })
+  );
+
+  rules.push(bright_up);
+
+  const very_bright_down = hue.model.createRule();
+  very_bright_down.name = `${prefix} - vb down`;
+  very_bright_down.recycle = false;
+
+  very_bright_down.addCondition(
+    hue.model.ruleConditions
+      .sensor(sensors.dimmer_switch)
+      .when("buttonevent")
+      .equals(DimmerAction.DIM_DOWN_BUTTON_SHORT_RELEASED)
+  );
+  very_bright_down.addCondition(
+    hue.model.ruleConditions
+      .sensor(dimming_sensor)
+      .when("status")
+      .equals(DimmingLevel.VERY_BRIGHT)
+  );
+  very_bright_down.addCondition(
+    hue.model.ruleConditions
+      .sensor(sensors.dimmer_switch)
+      .when("buttonevent")
+      .changed()
+  );
+
+  very_bright_down.addAction(
+    hue.model.actions
+      .sensor(dimming_sensor)
+      .withState({ status: DimmingLevel.BRIGHT })
+  );
+
+  rules.push(very_bright_down);
+
+  const bright_down = hue.model.createRule();
+  bright_down.name = `${prefix} - bright down`;
+  bright_down.recycle = false;
+
+  bright_down.addCondition(
+    hue.model.ruleConditions
+      .sensor(sensors.dimmer_switch)
+      .when("buttonevent")
+      .equals(DimmerAction.DIM_DOWN_BUTTON_SHORT_RELEASED)
+  );
+  bright_down.addCondition(
+    hue.model.ruleConditions
+      .sensor(dimming_sensor)
+      .when("status")
+      .equals(DimmingLevel.BRIGHT)
+  );
+  bright_down.addCondition(
+    hue.model.ruleConditions
+      .sensor(sensors.dimmer_switch)
+      .when("buttonevent")
+      .changed()
+  );
+
+  bright_down.addAction(
+    hue.model.actions
+      .sensor(dimming_sensor)
+      .withState({ status: DimmingLevel.NEUTRAL })
+  );
+
+  rules.push(bright_down);
+
+  let retrigger_count = 0;
+
+  for (const status_sensor of status_sensors) {
+    const retrigger_scene = hue.model.createRule();
+    retrigger_scene.name = `${prefix} - retrigger ${retrigger_count}`;
+    retrigger_scene.recycle = false;
+    retrigger_count = retrigger_count + 1;
+
+    retrigger_scene.addCondition(
+      hue.model.ruleConditions
+        .sensor(dimming_sensor)
+        .when("lastupdated")
+        .changed()
+    );
+
+    retrigger_scene.addCondition(
+      hue.model.ruleConditions
+        .sensor(status_sensor)
+        .when("status")
+        .equals(MotionRuleStatus.SCENE_TRIGGERED)
+    );
+
+    retrigger_scene.addAction(
+      hue.model.actions
+        .sensor(status_sensor)
+        .withState({ status: MotionRuleStatus.SHOULD_TRIGGER_SCENE })
+    );
+
+    rules.push(retrigger_scene);
+  }
 
   return rules;
 }
@@ -952,13 +1606,21 @@ async function run() {
     "is_late_night sensor status"
   );
 
+  const activity_sensor = await setupActivityStatusSensor(
+    api,
+    "activity sensor status"
+  );
+
+  const dimming_sensor = await setupDimmingSensor(api, "dimming sensor status");
+
   await createRules(
     api,
     setupKitchenSensorRules(
       kitchen_status_sensor,
       is_late_night_status_sensor,
       known_groups,
-      known_sensors
+      known_sensors,
+      dimming_sensor
     )
   );
   await createRules(
@@ -967,7 +1629,8 @@ async function run() {
       hallway_status_sensor,
       is_late_night_status_sensor,
       known_groups,
-      known_sensors
+      known_sensors,
+      dimming_sensor
     )
   );
   await createRules(
@@ -975,16 +1638,41 @@ async function run() {
     setupLivingroomSensorRules(
       livingroom_status_sensor,
       known_groups,
-      known_sensors
+      known_sensors,
+      dimming_sensor,
+      activity_sensor
+    )
+  );
+
+  const status_sensors = [
+    kitchen_status_sensor,
+    hallway_status_sensor,
+    livingroom_status_sensor,
+  ];
+
+  await createRules(
+    api,
+    setupLateNightStatus(
+      is_late_night_status_sensor,
+      known_sensors,
+      status_sensors
     )
   );
 
   await createRules(
     api,
-    setupLateNightStatus(is_late_night_status_sensor, known_sensors)
+    setupAllOff(known_groups, known_sensors, dimming_sensor, activity_sensor)
   );
 
-  await createRules(api, setupAllOff(known_groups, known_sensors));
+  await createRules(
+    api,
+    setupActivity(known_sensors, activity_sensor, status_sensors)
+  );
+
+  await createRules(
+    api,
+    setupDimming(known_sensors, dimming_sensor, status_sensors)
+  );
 }
 
 dotenv.config();
