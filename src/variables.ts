@@ -24,6 +24,9 @@ export enum LateNightRuleStatus {
 export enum ActivityStatus {
   NORMAL = 0,
   RELAX = 1,
+  FOCUS = 2,
+  DINNER = 3,
+  TV = 4,
 }
 
 declare type CLIPSensor =

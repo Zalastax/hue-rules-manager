@@ -1,4 +1,5 @@
 import { model, v3 as hue } from "node-hue-api";
+import { EnumType } from "typescript";
 import { MyGroups, MySensors } from "./static_resources";
 import {
   ActivityStatus,
@@ -29,7 +30,7 @@ enum DimmerAction {
 function transitionOnClick(
   name: string,
   sensor: model.Sensor,
-  brightness_variable: model.CLIPGenericStatus,
+  variable: model.CLIPGenericStatus,
   dimmer_action: DimmerAction,
   from: number,
   to: number
@@ -45,17 +46,14 @@ function transitionOnClick(
       .equals(dimmer_action)
   );
   neutral_down_rule.addCondition(
-    hue.model.ruleConditions
-      .sensor(brightness_variable)
-      .when("status")
-      .equals(from)
+    hue.model.ruleConditions.sensor(variable).when("status").equals(from)
   );
   neutral_down_rule.addCondition(
     hue.model.ruleConditions.sensor(sensor).when("buttonevent").changed()
   );
 
   neutral_down_rule.addAction(
-    hue.model.actions.sensor(brightness_variable).withState({ status: to })
+    hue.model.actions.sensor(variable).withState({ status: to })
   );
 
   return neutral_down_rule;
@@ -251,33 +249,55 @@ export function setupLateNightStatus(
   ];
 }
 
+function roundRobin<T extends EnumType>(
+  prefix: string,
+  sensor: model.Sensor,
+  variable: model.CLIPGenericStatus,
+  dimmer_action: DimmerAction,
+  values: number[]
+) {
+  const rules: model.Rule[] = [];
+
+  for (let i = 0; i < values.length; i++) {
+    const next = (i + 1) % values.length;
+    const value_i = values[i];
+    const value_next = values[next];
+
+    rules.push(
+      transitionOnClick(
+        `${prefix} - ${value_i} -> ${value_next}`,
+        sensor,
+        variable,
+        dimmer_action,
+        value_i,
+        value_next
+      )
+    );
+  }
+
+  return rules;
+}
+
 export function setupActivity(
   sensors: MySensors,
   activity_variable: model.CLIPGenericStatus,
   status_sensors: model.CLIPGenericStatus[]
 ) {
   const prefix = "activity";
-  const rules: model.Rule[] = [
-    transitionOnClick(
-      `${prefix} - from normal`,
-      sensors.dimmer_switch,
-      activity_variable,
-      DimmerAction.ON_BUTTON_SHORT_RELEASED,
-      ActivityStatus.NORMAL,
-      ActivityStatus.RELAX
-    ),
-    transitionOnClick(
-      `${prefix} - from relax`,
-      sensors.dimmer_switch,
-      activity_variable,
-      DimmerAction.ON_BUTTON_SHORT_RELEASED,
-      ActivityStatus.RELAX,
-      ActivityStatus.NORMAL
-    ),
-    ...retriggerScenes(prefix, activity_variable, status_sensors),
-  ];
 
-  return rules;
+  return roundRobin(
+    prefix,
+    sensors.dimmer_switch,
+    activity_variable,
+    DimmerAction.ON_BUTTON_SHORT_RELEASED,
+    [
+      ActivityStatus.NORMAL,
+      ActivityStatus.RELAX,
+      ActivityStatus.FOCUS,
+      ActivityStatus.DINNER,
+      ActivityStatus.TV,
+    ]
+  );
 }
 
 function retriggerScenes(
