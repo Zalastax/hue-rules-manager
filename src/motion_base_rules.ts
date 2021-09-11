@@ -1,6 +1,6 @@
 import { model, v3 as hue } from "node-hue-api";
 import { transitionTimes } from "./static_resources";
-import { MotionRuleStatus, DimmingLevel } from "./variables";
+import { MotionRuleStatus, BrightnessLevel } from "./variables";
 
 function presenceOnRule(
   prefix: string,
@@ -92,10 +92,10 @@ function brightnessRules(
   brightness_sensor: model.CLIPGenericStatus
 ) {
   const levels = {
-    [DimmingLevel.BRIGHT]: "35",
-    [DimmingLevel.VERY_BRIGHT]: "128",
-    [DimmingLevel.DIMMED]: "-35",
-    [DimmingLevel.VERY_DIMMED]: "-128",
+    [BrightnessLevel.BRIGHT]: "35",
+    [BrightnessLevel.VERY_BRIGHT]: "128",
+    [BrightnessLevel.DIMMED]: "-35",
+    [BrightnessLevel.VERY_DIMMED]: "-128",
   };
 
   const bright = hue.model.createRule();
@@ -112,7 +112,7 @@ function brightnessRules(
     hue.model.ruleConditions
       .sensor(brightness_sensor)
       .when("status")
-      .equals(DimmingLevel.BRIGHT)
+      .equals(BrightnessLevel.BRIGHT)
   );
   // use when status changed instead of when lastupdated changed so that
   // we don't trigger again when recover rule sets SCENE_TRIGGERED again.
@@ -121,7 +121,7 @@ function brightnessRules(
   );
   bright.addAction(
     hue.model.actions.group(group).withState({
-      bri_inc: levels[DimmingLevel.BRIGHT],
+      bri_inc: levels[BrightnessLevel.BRIGHT],
       transitiontime: transitionTimes.dimming,
     })
   );
@@ -140,14 +140,14 @@ function brightnessRules(
     hue.model.ruleConditions
       .sensor(brightness_sensor)
       .when("status")
-      .equals(DimmingLevel.VERY_BRIGHT)
+      .equals(BrightnessLevel.VERY_BRIGHT)
   );
   very_bright.addCondition(
     hue.model.ruleConditions.sensor(status_sensor).when("status").changed()
   );
   very_bright.addAction(
     hue.model.actions.group(group).withState({
-      bri_inc: levels[DimmingLevel.VERY_BRIGHT],
+      bri_inc: levels[BrightnessLevel.VERY_BRIGHT],
       transitiontime: transitionTimes.dimming,
     })
   );
@@ -169,12 +169,12 @@ function brightnessRules(
     hue.model.ruleConditions
       .sensor(brightness_sensor)
       .when("status")
-      .equals(DimmingLevel.DIMMED)
+      .equals(BrightnessLevel.DIMMED)
   );
 
   dimmed.addAction(
     hue.model.actions.group(group).withState({
-      bri_inc: levels[DimmingLevel.DIMMED],
+      bri_inc: levels[BrightnessLevel.DIMMED],
       transitiontime: transitionTimes.dimming,
     })
   );
@@ -196,12 +196,12 @@ function brightnessRules(
     hue.model.ruleConditions
       .sensor(brightness_sensor)
       .when("status")
-      .equals(DimmingLevel.VERY_DIMMED)
+      .equals(BrightnessLevel.VERY_DIMMED)
   );
 
   very_dimmed.addAction(
     hue.model.actions.group(group).withState({
-      bri_inc: levels[DimmingLevel.VERY_DIMMED],
+      bri_inc: levels[BrightnessLevel.VERY_DIMMED],
       transitiontime: transitionTimes.dimming,
     })
   );

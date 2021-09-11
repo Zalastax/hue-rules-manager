@@ -5,7 +5,7 @@ import {
   setupLateNightStatus,
   setupAllOff,
   setupActivity,
-  setupDimming,
+  setupBrightness,
 } from "./dimmer_switch_rules";
 import { setupHallwaySensorRules as hallwayRules } from "./rooms/hallway";
 import { kitchenRules } from "./rooms/kitchen";
@@ -40,7 +40,7 @@ async function createRulesAndSensors(api: Api) {
       variables.is_late_night_status,
       known_groups,
       known_sensors,
-      variables.dimming
+      variables.brightness
     )
   );
   await createRules(
@@ -50,7 +50,7 @@ async function createRulesAndSensors(api: Api) {
       variables.is_late_night_status,
       known_groups,
       known_sensors,
-      variables.dimming
+      variables.brightness
     )
   );
   await createRules(
@@ -59,7 +59,7 @@ async function createRulesAndSensors(api: Api) {
       variables.livingroom_status,
       known_groups,
       known_sensors,
-      variables.dimming,
+      variables.brightness,
       variables.activity
     )
   );
@@ -84,7 +84,7 @@ async function createRulesAndSensors(api: Api) {
     setupAllOff(
       known_groups,
       known_sensors,
-      variables.dimming,
+      variables.brightness,
       variables.activity
     )
   );
@@ -96,7 +96,7 @@ async function createRulesAndSensors(api: Api) {
 
   await createRules(
     api,
-    setupDimming(known_sensors, variables.dimming, status_sensors)
+    setupBrightness(known_sensors, variables.brightness, status_sensors)
   );
 }
 

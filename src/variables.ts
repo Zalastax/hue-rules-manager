@@ -8,7 +8,7 @@ export enum MotionRuleStatus {
   DIMMED = 3,
 }
 
-export enum DimmingLevel {
+export enum BrightnessLevel {
   VERY_DIMMED = 4,
   DIMMED = 3,
   NEUTRAL = 0,
@@ -71,33 +71,33 @@ export async function createVariables(api: Api) {
   return {
     kitchen_status: await setupCLIPGenericStatusSensor(
       api,
-      "kitchen sensor status",
+      "kitchen status",
       MotionRuleStatus.ARMED
     ),
     hallway_status: await setupCLIPGenericStatusSensor(
       api,
-      "hallway sensor status",
+      "hallway status",
       MotionRuleStatus.ARMED
     ),
     livingroom_status: await setupCLIPGenericStatusSensor(
       api,
-      "livingroom sensor status",
+      "livingroom status",
       MotionRuleStatus.ARMED
     ),
     is_late_night_status: await setupCLIPGenericStatusSensor(
       api,
-      "is_late_night sensor status",
+      "is_late_night status",
       LateNightRuleStatus.NOT_LATE_NIGHT
     ),
     activity: await setupCLIPGenericStatusSensor(
       api,
-      "activity sensor status",
+      "activity status",
       ActivityStatus.NORMAL
     ),
-    dimming: await setupCLIPGenericStatusSensor(
+    brightness: await setupCLIPGenericStatusSensor(
       api,
-      "dimming sensor status",
-      DimmingLevel.NEUTRAL
+      "brightness status",
+      BrightnessLevel.NEUTRAL
     ),
   };
 }
