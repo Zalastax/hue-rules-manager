@@ -1,12 +1,16 @@
 import { model, v3 as hue } from "node-hue-api";
 import { EnumType } from "typescript";
-import { MyGroups, MySensors } from "./static_resources";
+import { KnownGroups, KnownSensors } from "./static_resources";
 import {
   ActivityStatus,
   BrightnessLevel,
   LateNightRuleStatus,
   MotionRuleStatus,
 } from "./variables";
+
+declare type CLIPGenericStatus = model.CLIPGenericStatus;
+declare type Rule = model.Rule;
+declare type Sensor = model.Sensor;
 
 enum DimmerAction {
   ON_BUTTON_INITIAL_PRESS = 1000,
@@ -29,8 +33,8 @@ enum DimmerAction {
 
 function transitionOnClick(
   name: string,
-  sensor: model.Sensor,
-  variable: model.CLIPGenericStatus,
+  sensor: Sensor,
+  variable: CLIPGenericStatus,
   dimmer_action: DimmerAction,
   from: number,
   to: number
@@ -60,16 +64,16 @@ function transitionOnClick(
 }
 
 export function setupBrightness(
-  sensors: MySensors,
-  brightness_variable: model.CLIPGenericStatus,
-  status_sensors: model.CLIPGenericStatus[]
+  sensors: KnownSensors,
+  brightness_status: CLIPGenericStatus,
+  status_variables: CLIPGenericStatus[]
 ) {
   const prefix = "brightness status";
-  const rules: model.Rule[] = [
+  const rules: Rule[] = [
     transitionOnClick(
       `${prefix} - neutral down`,
       sensors.dimmer_switch,
-      brightness_variable,
+      brightness_status,
       DimmerAction.DIM_DOWN_BUTTON_SHORT_RELEASED,
       BrightnessLevel.NEUTRAL,
       BrightnessLevel.DIMMED
@@ -77,15 +81,15 @@ export function setupBrightness(
     transitionOnClick(
       `${prefix} - dimmed down`,
       sensors.dimmer_switch,
-      brightness_variable,
+      brightness_status,
       DimmerAction.DIM_DOWN_BUTTON_SHORT_RELEASED,
       BrightnessLevel.DIMMED,
       BrightnessLevel.VERY_DIMMED
     ),
     transitionOnClick(
-      `${prefix} - very dimmed down`,
+      `${prefix} - v_dim down`,
       sensors.dimmer_switch,
-      brightness_variable,
+      brightness_status,
       DimmerAction.DIM_UP_BUTTON_SHORT_RELEASED,
       BrightnessLevel.VERY_DIMMED,
       BrightnessLevel.DIMMED
@@ -93,7 +97,7 @@ export function setupBrightness(
     transitionOnClick(
       `${prefix} - dimmed up`,
       sensors.dimmer_switch,
-      brightness_variable,
+      brightness_status,
       DimmerAction.DIM_UP_BUTTON_SHORT_RELEASED,
       BrightnessLevel.DIMMED,
       BrightnessLevel.NEUTRAL
@@ -101,7 +105,7 @@ export function setupBrightness(
     transitionOnClick(
       `${prefix} - neutral up`,
       sensors.dimmer_switch,
-      brightness_variable,
+      brightness_status,
       DimmerAction.DIM_UP_BUTTON_SHORT_RELEASED,
       BrightnessLevel.NEUTRAL,
       BrightnessLevel.BRIGHT
@@ -109,7 +113,7 @@ export function setupBrightness(
     transitionOnClick(
       `${prefix} - bright up`,
       sensors.dimmer_switch,
-      brightness_variable,
+      brightness_status,
       DimmerAction.DIM_UP_BUTTON_SHORT_RELEASED,
       BrightnessLevel.BRIGHT,
       BrightnessLevel.VERY_BRIGHT
@@ -117,7 +121,7 @@ export function setupBrightness(
     transitionOnClick(
       `${prefix} - vb down`,
       sensors.dimmer_switch,
-      brightness_variable,
+      brightness_status,
       DimmerAction.DIM_DOWN_BUTTON_SHORT_RELEASED,
       BrightnessLevel.VERY_BRIGHT,
       BrightnessLevel.BRIGHT
@@ -125,22 +129,22 @@ export function setupBrightness(
     transitionOnClick(
       `${prefix} - bright down`,
       sensors.dimmer_switch,
-      brightness_variable,
+      brightness_status,
       DimmerAction.DIM_DOWN_BUTTON_SHORT_RELEASED,
       BrightnessLevel.BRIGHT,
       BrightnessLevel.NEUTRAL
     ),
-    ...retriggerScenes(prefix, brightness_variable, status_sensors),
+    ...retriggerScenes(prefix, brightness_status, status_variables),
   ];
 
   return rules;
 }
 
 export function setupLateNightStatus(
-  late_night_status_sensor: model.CLIPGenericStatus,
-  sensors: MySensors,
-  status_sensors: model.CLIPGenericStatus[]
-): model.Rule[] {
+  late_night_status_variable: CLIPGenericStatus,
+  sensors: KnownSensors,
+  status_variables: CLIPGenericStatus[]
+): Rule[] {
   const prefix = "late night status";
   const late_night_range = "T22:20:00/T08:00:00";
 
@@ -158,7 +162,7 @@ export function setupLateNightStatus(
 
   not_late_night_rule.addAction(
     hue.model.actions
-      .sensor(late_night_status_sensor)
+      .sensor(late_night_status_variable)
       .withState({ status: LateNightRuleStatus.NOT_LATE_NIGHT })
   );
 
@@ -176,7 +180,7 @@ export function setupLateNightStatus(
 
   late_night_rule.addAction(
     hue.model.actions
-      .sensor(late_night_status_sensor)
+      .sensor(late_night_status_variable)
       .withState({ status: LateNightRuleStatus.IS_LATE_NIGHT })
   );
 
@@ -186,7 +190,7 @@ export function setupLateNightStatus(
 
   dimmer_switch_armed_rule.addCondition(
     hue.model.ruleConditions
-      .sensor(late_night_status_sensor)
+      .sensor(late_night_status_variable)
       .when("status")
       .equals(LateNightRuleStatus.NOT_LATE_NIGHT)
   );
@@ -206,7 +210,7 @@ export function setupLateNightStatus(
 
   dimmer_switch_armed_rule.addAction(
     hue.model.actions
-      .sensor(late_night_status_sensor)
+      .sensor(late_night_status_variable)
       .withState({ status: LateNightRuleStatus.IS_LATE_NIGHT })
   );
 
@@ -216,7 +220,7 @@ export function setupLateNightStatus(
 
   dimmer_switch_late_night_rule.addCondition(
     hue.model.ruleConditions
-      .sensor(late_night_status_sensor)
+      .sensor(late_night_status_variable)
       .when("status")
       .equals(LateNightRuleStatus.IS_LATE_NIGHT)
   );
@@ -236,7 +240,7 @@ export function setupLateNightStatus(
 
   dimmer_switch_late_night_rule.addAction(
     hue.model.actions
-      .sensor(late_night_status_sensor)
+      .sensor(late_night_status_variable)
       .withState({ status: LateNightRuleStatus.NOT_LATE_NIGHT })
   );
 
@@ -245,18 +249,18 @@ export function setupLateNightStatus(
     dimmer_switch_armed_rule,
     not_late_night_rule,
     dimmer_switch_late_night_rule,
-    ...retriggerScenes(prefix, late_night_status_sensor, status_sensors),
+    ...retriggerScenes(prefix, late_night_status_variable, status_variables),
   ];
 }
 
 function roundRobin<T extends EnumType>(
   prefix: string,
-  sensor: model.Sensor,
-  variable: model.CLIPGenericStatus,
+  sensor: Sensor,
+  variable: CLIPGenericStatus,
   dimmer_action: DimmerAction,
   values: number[]
 ) {
-  const rules: model.Rule[] = [];
+  const rules: Rule[] = [];
 
   for (let i = 0; i < values.length; i++) {
     const next = (i + 1) % values.length;
@@ -279,36 +283,39 @@ function roundRobin<T extends EnumType>(
 }
 
 export function setupActivity(
-  sensors: MySensors,
-  activity_variable: model.CLIPGenericStatus,
-  status_sensors: model.CLIPGenericStatus[]
-) {
+  sensors: KnownSensors,
+  activity_variable: CLIPGenericStatus,
+  status_variables: CLIPGenericStatus[]
+): Rule[] {
   const prefix = "activity";
 
-  return roundRobin(
-    prefix,
-    sensors.dimmer_switch,
-    activity_variable,
-    DimmerAction.ON_BUTTON_SHORT_RELEASED,
-    [
-      ActivityStatus.NORMAL,
-      ActivityStatus.RELAX,
-      ActivityStatus.FOCUS,
-      ActivityStatus.DINNER,
-      ActivityStatus.TV,
-    ]
-  );
+  return [
+    ...roundRobin(
+      prefix,
+      sensors.dimmer_switch,
+      activity_variable,
+      DimmerAction.ON_BUTTON_SHORT_RELEASED,
+      [
+        ActivityStatus.NORMAL,
+        ActivityStatus.RELAX,
+        ActivityStatus.FOCUS,
+        ActivityStatus.DINNER,
+        ActivityStatus.TV,
+      ]
+    ),
+    ...retriggerScenes(prefix, activity_variable, status_variables),
+  ];
 }
 
 function retriggerScenes(
   prefix: string,
-  variable: model.CLIPGenericStatus,
-  status_sensors: model.CLIPGenericStatus[]
+  variable: CLIPGenericStatus,
+  status_variables: CLIPGenericStatus[]
 ) {
   let retrigger_count = 0;
-  const rules: model.Rule[] = [];
+  const rules: Rule[] = [];
 
-  for (const status_sensor of status_sensors) {
+  for (const status_variable of status_variables) {
     const retrigger_scene = hue.model.createRule();
     retrigger_scene.name = `${prefix} - retrigger ${retrigger_count}`;
     retrigger_scene.recycle = false;
@@ -320,14 +327,14 @@ function retriggerScenes(
 
     retrigger_scene.addCondition(
       hue.model.ruleConditions
-        .sensor(status_sensor)
+        .sensor(status_variable)
         .when("status")
         .equals(MotionRuleStatus.SCENE_TRIGGERED)
     );
 
     retrigger_scene.addAction(
       hue.model.actions
-        .sensor(status_sensor)
+        .sensor(status_variable)
         .withState({ status: MotionRuleStatus.SHOULD_TRIGGER_SCENE })
     );
 
@@ -338,12 +345,12 @@ function retriggerScenes(
 }
 
 export function setupAllOff(
-  groups: MyGroups,
-  sensors: MySensors,
-  dimming_sensor: model.CLIPGenericStatus,
-  activity_sensor: model.CLIPGenericStatus
+  groups: KnownGroups,
+  sensors: KnownSensors,
+  brightness: CLIPGenericStatus,
+  activity: CLIPGenericStatus
 ) {
-  const rules: model.Rule[] = [];
+  const rules: Rule[] = [];
   const prefix = "all off";
 
   const dimmer_switch_off_long_rule = hue.model.createRule();
@@ -390,12 +397,12 @@ export function setupAllOff(
 
   off_long_time_rule.addAction(
     hue.model.actions
-      .sensor(dimming_sensor)
+      .sensor(brightness)
       .withState({ status: BrightnessLevel.NEUTRAL })
   );
   off_long_time_rule.addAction(
     hue.model.actions
-      .sensor(activity_sensor)
+      .sensor(activity)
       .withState({ status: ActivityStatus.NORMAL })
   );
 

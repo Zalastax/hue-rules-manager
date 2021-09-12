@@ -1,6 +1,8 @@
 import { model } from "node-hue-api";
 import { Api } from "node-hue-api/dist/esm/api/Api";
+import { ActivityStatus } from "./variables";
 
+declare type Sensor = model.Sensor;
 declare type Luminaire = model.Luminaire;
 declare type Entertainment = model.Entertainment;
 declare type Zone = model.Zone;
@@ -17,7 +19,7 @@ declare type AnyGroup =
   | Room
   | Zone;
 
-export interface MyGroups
+export interface KnownGroups
   extends Record<
     "Group 0" | "Living room" | "Espresso" | "Kök" | "Hallway" | "Bedroom",
     AnyGroup
@@ -30,7 +32,7 @@ export interface MyGroups
   Bedroom: Room;
 }
 
-export interface MySensors
+export interface KnownSensors
   extends Record<
     | "builtin_daylight"
     | "dimmer_switch"
@@ -40,10 +42,10 @@ export interface MySensors
     | "kitchen_light_level"
     | "livingroom_presence"
     | "livingroom_light_level",
-    model.Sensor
+    Sensor
   > {}
 
-export async function getSensors(api: Api): Promise<MySensors> {
+export async function getSensors(api: Api) {
   return {
     builtin_daylight: await api.sensors.getSensor("1"),
     dimmer_switch: await api.sensors.getSensor("105"),
@@ -56,7 +58,7 @@ export async function getSensors(api: Api): Promise<MySensors> {
   };
 }
 
-export async function getGroups(api: Api): Promise<MyGroups> {
+export async function getGroups(api: Api): Promise<KnownGroups> {
   return {
     "Group 0": (await api.groups.getGroup(0)) as LightGroup,
     "Living room": (await api.groups.getGroup(1)) as Room,
@@ -73,13 +75,39 @@ export const transitionTimes = {
   dimming: 3,
 };
 
-export const known_scenes = {
-  kitchen_very_bright: "Dy4JnbnTdD9GOu7",
-  kitchen_dimmed: "1Fhe-qar2rOf-6D",
-  kitchen_nightlight: "PzTl0lm1Xn4nzHM",
-  hallway_very_dimmed: "bmTK0pTtYUAJlGw",
-  hallway_semi_bright: "JtPUJRpFv2LVJvq",
-  livingroom_bright: "DqXCpluUaZh7Rnd",
-  livingroom_osaka: "PhDFbG2LYtXnB2J",
-  livingroom_relax: "MaGOnFXSzZjebjP",
+export enum DayCycle {
+  DAY,
+  EARLY_NIGHT,
+  LATE_NIGHT,
+}
+
+export const activity_scenes: Record<
+  ActivityStatus,
+  Record<DayCycle, string>
+> = {
+  [ActivityStatus.NORMAL]: {
+    [DayCycle.DAY]: "2N9ew2F9ilEBxT9",
+    [DayCycle.EARLY_NIGHT]: "MWSOSEAqqWzgm7p",
+    [DayCycle.LATE_NIGHT]: "nwSmiyQQhDSrEN8",
+  },
+  [ActivityStatus.RELAX]: {
+    [DayCycle.DAY]: "unioJwgDALrfWHC",
+    [DayCycle.EARLY_NIGHT]: "CxMQFku1o5zREJJ",
+    [DayCycle.LATE_NIGHT]: "ADDsZWHfVNbjrS4",
+  },
+  [ActivityStatus.FOCUS]: {
+    [DayCycle.DAY]: "CSvpHYT0VHZwZgD",
+    [DayCycle.EARLY_NIGHT]: "pDEBf2FhDpxaxV4",
+    [DayCycle.LATE_NIGHT]: "UCsUUfUbSMATxW8",
+  },
+  [ActivityStatus.DINNER]: {
+    [DayCycle.DAY]: "zhunCObavDkmSuA",
+    [DayCycle.EARLY_NIGHT]: "onSrdMNNmgUEt40",
+    [DayCycle.LATE_NIGHT]: "uyiQkLaXzZslzE5",
+  },
+  [ActivityStatus.TV]: {
+    [DayCycle.DAY]: "i3Qbk9WURl8wMzH",
+    [DayCycle.EARLY_NIGHT]: "Jllts4DcaIXK6fh",
+    [DayCycle.LATE_NIGHT]: "nkANEYmyZBTTuMD",
+  },
 };
