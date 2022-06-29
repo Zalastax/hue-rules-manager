@@ -1,20 +1,41 @@
 import { model, v3 as hue } from "node-hue-api";
 import { transitionTimes } from "./static_resources";
-import { MotionRuleStatus, BrightnessLevel } from "./variables";
+import {
+  MotionRuleStatus,
+  BrightnessLevel,
+  DIMMING_TIME,
+  SceneSetStatus,
+} from "./variables";
 
 declare type CLIPGenericStatus = model.CLIPGenericStatus;
 declare type Group = model.Group;
 declare type Rule = model.Rule;
 declare type Sensor = model.Sensor;
 
-function presenceOnRule(
+// Motion Rule Status (MRStatus) Transitions:
+// 1. ARMED -> PLAN_GROUP_ON if presence is detected while it is dark.
+// 2. PLAN_GROUP_ON -> GROUP_ON implemented by rules per activity and period of day.
+//    Does not trigger if Scene was set in this period of day.
+// 3. PLAN_GROUP_ON -> GROUP_ON if scene has already been set
+//    once for this activity and period of day.
+// 4. GROUP_ON -> DIMMED when Presence is not detected, with a delay of dim_delay.
+// 5. DIMMED -> PLAN_GROUP_ON when Presence is detected.
+// 6. Anything -> ARMED when Presence is not detected and no lights in the group are on.
+// 7. GROUP_ON -> PLAN_GROUP_ON when Scene should change immediately.
+
+// Transition to state where lights will turn on.
+// This is implemented using one rule:
+// 1. Set MRStatus to PLAN_GROUP_ON if MRStatus is ARMED
+//    AND Light level is Dark AND Presence is detected.
+// MRStatus transitions from ARMED to PLAN_GROUP_ON (1).
+function planGroupOnRules(
   prefix: string,
   status_variable: CLIPGenericStatus,
   presence: Sensor,
   light_level: Sensor
 ) {
   const presence_on_rule = hue.model.createRule();
-  presence_on_rule.name = `${prefix} - presence on`;
+  presence_on_rule.name = `${prefix} - on`;
   presence_on_rule.recycle = false;
 
   presence_on_rule.addCondition(
@@ -29,197 +50,32 @@ function presenceOnRule(
   presence_on_rule.addCondition(
     hue.model.ruleConditions.sensor(presence).when("presence").equals(true)
   );
-  presence_on_rule.addCondition(
-    hue.model.ruleConditions.sensor(presence).when("presence").changed()
-  );
 
   presence_on_rule.addAction(
     hue.model.actions
       .sensor(status_variable)
-      .withState({ status: MotionRuleStatus.SHOULD_TRIGGER_SCENE })
+      .withState({ status: MotionRuleStatus.PLAN_GROUP_ON })
   );
 
-  return presence_on_rule;
+  return [presence_on_rule];
 }
 
-function darkOnRule(
-  prefix: string,
-  status_variable: CLIPGenericStatus,
-  presence: Sensor,
-  light_level: Sensor
-) {
-  const dark_on_rule = hue.model.createRule();
-  dark_on_rule.name = `${prefix} - dark on`;
-  dark_on_rule.recycle = false;
-
-  dark_on_rule.addCondition(
-    hue.model.ruleConditions
-      .sensor(status_variable)
-      .when("status")
-      .equals(MotionRuleStatus.ARMED)
-  );
-  dark_on_rule.addCondition(
-    hue.model.ruleConditions.sensor(light_level).when("dark").equals(true)
-  );
-  dark_on_rule.addCondition(
-    hue.model.ruleConditions.sensor(presence).when("presence").equals(true)
-  );
-  dark_on_rule.addCondition(
-    hue.model.ruleConditions.sensor(presence).when("presence").changed()
-  );
-
-  dark_on_rule.addAction(
-    hue.model.actions
-      .sensor(status_variable)
-      .withState({ status: MotionRuleStatus.SHOULD_TRIGGER_SCENE })
-  );
-
-  return dark_on_rule;
-}
-
-function onRules(
-  prefix: string,
-  status_variable: CLIPGenericStatus,
-  presence: Sensor,
-  light_level: Sensor
-) {
-  return [
-    presenceOnRule(prefix, status_variable, presence, light_level),
-
-    darkOnRule(prefix, status_variable, presence, light_level),
-  ];
-}
-
-function brightnessRules(
-  prefix: string,
-  status_variable: CLIPGenericStatus,
-  group: string | number | Group,
-  brightness_status: CLIPGenericStatus
-) {
-  const levels = {
-    [BrightnessLevel.BRIGHT]: "35",
-    [BrightnessLevel.VERY_BRIGHT]: "128",
-    [BrightnessLevel.DIMMED]: "-35",
-    [BrightnessLevel.VERY_DIMMED]: "-128",
-  };
-
-  const bright = hue.model.createRule();
-  bright.name = `${prefix} - dim lvl bright`;
-  bright.recycle = true;
-
-  bright.addCondition(
-    hue.model.ruleConditions
-      .sensor(status_variable)
-      .when("status")
-      .equals(MotionRuleStatus.SCENE_TRIGGERED)
-  );
-  bright.addCondition(
-    hue.model.ruleConditions
-      .sensor(brightness_status)
-      .when("status")
-      .equals(BrightnessLevel.BRIGHT)
-  );
-  // use when status changed instead of when lastupdated changed so that
-  // we don't trigger again when recover rule sets SCENE_TRIGGERED again.
-  bright.addCondition(
-    hue.model.ruleConditions.sensor(status_variable).when("status").changed()
-  );
-  bright.addAction(
-    hue.model.actions.group(group).withState({
-      bri_inc: levels[BrightnessLevel.BRIGHT],
-      transitiontime: transitionTimes.dimming,
-    })
-  );
-
-  const very_bright = hue.model.createRule();
-  very_bright.name = `${prefix} - dimming vb`;
-  very_bright.recycle = true;
-
-  very_bright.addCondition(
-    hue.model.ruleConditions
-      .sensor(status_variable)
-      .when("status")
-      .equals(MotionRuleStatus.SCENE_TRIGGERED)
-  );
-  very_bright.addCondition(
-    hue.model.ruleConditions
-      .sensor(brightness_status)
-      .when("status")
-      .equals(BrightnessLevel.VERY_BRIGHT)
-  );
-  very_bright.addCondition(
-    hue.model.ruleConditions.sensor(status_variable).when("status").changed()
-  );
-  very_bright.addAction(
-    hue.model.actions.group(group).withState({
-      bri_inc: levels[BrightnessLevel.VERY_BRIGHT],
-      transitiontime: transitionTimes.dimming,
-    })
-  );
-
-  const dimmed = hue.model.createRule();
-  dimmed.name = `${prefix} - dim lvl dimmed`;
-  dimmed.recycle = true;
-
-  dimmed.addCondition(
-    hue.model.ruleConditions
-      .sensor(status_variable)
-      .when("status")
-      .equals(MotionRuleStatus.SCENE_TRIGGERED)
-  );
-  dimmed.addCondition(
-    hue.model.ruleConditions.sensor(status_variable).when("status").changed()
-  );
-  dimmed.addCondition(
-    hue.model.ruleConditions
-      .sensor(brightness_status)
-      .when("status")
-      .equals(BrightnessLevel.DIMMED)
-  );
-
-  dimmed.addAction(
-    hue.model.actions.group(group).withState({
-      bri_inc: levels[BrightnessLevel.DIMMED],
-      transitiontime: transitionTimes.dimming,
-    })
-  );
-
-  const very_dimmed = hue.model.createRule();
-  very_dimmed.name = `${prefix} - dim lvl vd`;
-  very_dimmed.recycle = true;
-
-  very_dimmed.addCondition(
-    hue.model.ruleConditions
-      .sensor(status_variable)
-      .when("status")
-      .equals(MotionRuleStatus.SCENE_TRIGGERED)
-  );
-  very_dimmed.addCondition(
-    hue.model.ruleConditions.sensor(status_variable).when("status").changed()
-  );
-  very_dimmed.addCondition(
-    hue.model.ruleConditions
-      .sensor(brightness_status)
-      .when("status")
-      .equals(BrightnessLevel.VERY_DIMMED)
-  );
-
-  very_dimmed.addAction(
-    hue.model.actions.group(group).withState({
-      bri_inc: levels[BrightnessLevel.VERY_DIMMED],
-      transitiontime: transitionTimes.dimming,
-    })
-  );
-
-  return [very_bright, bright, dimmed, very_dimmed];
-}
-
+// Dims if Presence is not detected, with a delay of dim_delay.
+// This is implemented using three rules:
+// 1. Stores lightstates and transitions MRStatus to DIMMED if
+//    MRStatus has been GROUP_ON for dim_delay time AND Presence is not detected.
+// 2. Stores lightstates and transitions MRStatus to DIMMED if
+//    Presence has not been detected for dim_delay time AND MRStatus is GROUP_ON.
+// 3. Dims if MRStatus is DIMMED.
+// Dimming is implemented by setting group "on" state to false.
+// MRStatus transitions from GROUP_ON to DIMMED (4).
 function dimRules(
   prefix: string,
   status_variable: CLIPGenericStatus,
   presence: Sensor,
   group: string | number | Group,
-  dim_delay: string
+  dim_delay: string,
+  tmp_scene: SceneType
 ) {
   const dim_status_rule = hue.model.createRule();
   dim_status_rule.name = `${prefix} - dim status`;
@@ -229,21 +85,22 @@ function dimRules(
     hue.model.ruleConditions
       .sensor(status_variable)
       .when("status")
-      .equals(MotionRuleStatus.SCENE_TRIGGERED)
+      .equals(MotionRuleStatus.GROUP_ON)
   );
   dim_status_rule.addCondition(
     hue.model.ruleConditions
       .sensor(status_variable)
       .when("lastupdated")
-      .changedDelayed(dim_delay as any) // changedDelayed seems ill-types
+      .changedDelayed(dim_delay as any) // changedDelayed seems ill-typed
   );
   dim_status_rule.addCondition(
     hue.model.ruleConditions.sensor(presence).when("presence").equals(false)
   );
 
   dim_status_rule.addAction(
-    hue.model.actions.group(group).withState({ bri_inc: "-128" })
+    hue.model.actions.scene(tmp_scene).withState({ storelightstate: true })
   );
+
   dim_status_rule.addAction(
     hue.model.actions
       .sensor(status_variable)
@@ -258,20 +115,20 @@ function dimRules(
     hue.model.ruleConditions
       .sensor(status_variable)
       .when("status")
-      .equals(MotionRuleStatus.SCENE_TRIGGERED)
+      .equals(MotionRuleStatus.GROUP_ON)
   );
   dim_presence_rule.addCondition(
     hue.model.ruleConditions
       .sensor(presence)
       .when("presence")
-      .changedDelayed(dim_delay as any) // changedDelayed seems ill-types
+      .changedDelayed(dim_delay as any) // changedDelayed seems ill-typed
   );
   dim_presence_rule.addCondition(
     hue.model.ruleConditions.sensor(presence).when("presence").equals(false)
   );
 
   dim_presence_rule.addAction(
-    hue.model.actions.group(group).withState({ bri_inc: "-128" })
+    hue.model.actions.scene(tmp_scene).withState({ storelightstate: true })
   );
   dim_presence_rule.addAction(
     hue.model.actions
@@ -279,70 +136,37 @@ function dimRules(
       .withState({ status: MotionRuleStatus.DIMMED })
   );
 
-  return [dim_status_rule, dim_presence_rule];
-}
+  const dimmed_perform_rule = hue.model.createRule();
+  dimmed_perform_rule.name = `${prefix} - dim perform`;
+  dimmed_perform_rule.recycle = false;
 
-export function motionSensorBaseRules(
-  prefix: string,
-  status_variable: CLIPGenericStatus,
-  presence: Sensor,
-  light_level: Sensor,
-  group: string | number | Group,
-  dim_delay: string,
-  brightness_status: CLIPGenericStatus
-): Rule[] {
-  // From ARMED to SHOULD_TRIGGER_SCENE
-  const on_rules = onRules(prefix, status_variable, presence, light_level);
-
-  // Then the specific rules go from SHOULD_TRIGGER_SCENE to SCENE_TRIGGERED
-
-  // When SCENE_TRIGGERED
-  const brightness_rules = brightnessRules(
-    prefix,
-    status_variable,
-    group,
-    brightness_status
-  );
-
-  const dim_rules = dimRules(
-    prefix,
-    status_variable,
-    presence,
-    group,
-    dim_delay
-  );
-
-  // From SCENE_TRIGGERED
-  // To SCENE_TRIGGERED
-  // So that dim status rule is reset
-  const recover_scense_triggered_rule = hue.model.createRule();
-  recover_scense_triggered_rule.name = `${prefix} - recover 1`;
-  recover_scense_triggered_rule.recycle = false;
-
-  recover_scense_triggered_rule.addCondition(
+  dimmed_perform_rule.addCondition(
     hue.model.ruleConditions
       .sensor(status_variable)
       .when("status")
-      .equals(MotionRuleStatus.SCENE_TRIGGERED)
-  );
-  recover_scense_triggered_rule.addCondition(
-    hue.model.ruleConditions.sensor(presence).when("presence").changed()
-  );
-  recover_scense_triggered_rule.addCondition(
-    hue.model.ruleConditions.sensor(presence).when("presence").equals(true)
+      .equals(MotionRuleStatus.DIMMED)
   );
 
-  recover_scense_triggered_rule.addAction(
+  dimmed_perform_rule.addAction(
     hue.model.actions
-      .sensor(status_variable)
-      .withState({ status: MotionRuleStatus.SCENE_TRIGGERED })
+      .group(group)
+      .withState({ on: false, transitiontime: DIMMING_TIME })
   );
 
-  // From DIMMED
-  // To SHOULD_TRIGGER_SCENE
-  // So that scene and brightness is set again
+  return [dim_status_rule, dim_presence_rule, dimmed_perform_rule];
+}
+
+// Recovers lights when Dimming and Presence is detected.
+// This is implemented using one rule:
+// 1. Set MRStatus to PLAN_GROUP_ON if MRStatus is DIMMED AND Presence is detected.
+// MRStatus transitions from DIMMED to PLAN_GROUP_ON (5).
+function recoverFromDimmedRules(
+  prefix: string,
+  status_variable: CLIPGenericStatus,
+  presence: Sensor
+) {
   const recover_dimmed_rule = hue.model.createRule();
-  recover_dimmed_rule.name = `${prefix} - recover 2`;
+  recover_dimmed_rule.name = `${prefix} - recover`;
   recover_dimmed_rule.recycle = false;
 
   recover_dimmed_rule.addCondition(
@@ -351,9 +175,7 @@ export function motionSensorBaseRules(
       .when("status")
       .equals(MotionRuleStatus.DIMMED)
   );
-  recover_dimmed_rule.addCondition(
-    hue.model.ruleConditions.sensor(presence).when("presence").changed()
-  );
+
   recover_dimmed_rule.addCondition(
     hue.model.ruleConditions.sensor(presence).when("presence").equals(true)
   );
@@ -361,35 +183,22 @@ export function motionSensorBaseRules(
   recover_dimmed_rule.addAction(
     hue.model.actions
       .sensor(status_variable)
-      .withState({ status: MotionRuleStatus.SHOULD_TRIGGER_SCENE })
+      .withState({ status: MotionRuleStatus.PLAN_GROUP_ON })
   );
 
-  const off_rule = hue.model.createRule();
-  off_rule.name = `${prefix} - off`;
-  off_rule.recycle = false;
+  return [recover_dimmed_rule];
+}
 
-  off_rule.addCondition(
-    hue.model.ruleConditions.sensor(presence).when("presence").equals(false)
-  );
-  off_rule.addCondition(
-    hue.model.ruleConditions
-      .sensor(status_variable)
-      .when("status")
-      .equals(MotionRuleStatus.DIMMED)
-  );
-  off_rule.addCondition(
-    hue.model.ruleConditions
-      .sensor(status_variable)
-      .when("status")
-      .changedDelayed("PT00:01:00" as any)
-  );
-  off_rule.addAction(hue.model.actions.group(group).withState({ on: false }));
-  off_rule.addAction(
-    hue.model.actions
-      .sensor(status_variable)
-      .withState({ status: MotionRuleStatus.ARMED })
-  );
-
+// Reset MRStatus when dimming
+// This is implemented using one rule:
+// 1. Set MRStatus to ARMED if Presence is not detected and no lights in the group are on.
+// MRStatus transitions to ARMED (6).
+function armRules(
+  prefix: string,
+  status_variable: CLIPGenericStatus,
+  presence: Sensor,
+  group: string | number | Group
+) {
   const arm_rule = hue.model.createRule();
   arm_rule.name = `${prefix} - arm`;
   arm_rule.recycle = false;
@@ -407,13 +216,175 @@ export function motionSensorBaseRules(
       .withState({ status: MotionRuleStatus.ARMED })
   );
 
+  return [arm_rule];
+}
+
+// Turn on lights in group without changing scene.
+// This is implemented using one rule:
+// 1. Set Status to GROUP_ON and turn on group to stored lightstate
+// if Status is PLAN_GROUP_ON and scene has already
+// been set once for this activity and period of day.
+// Status transitions from PLAN_GROUP_ON to GROUP_ON (3).
+function groupOnRecoverRules(
+  prefix: string,
+  status_variable: CLIPGenericStatus,
+  scene_set_in_this_period: CLIPGenericStatus,
+  group: string | number | Group,
+  tmp_scene: SceneType
+): Rule[] {
+  const group_on_recover_rule = hue.model.createRule();
+  group_on_recover_rule.name = `${prefix} group on recover`;
+  group_on_recover_rule.recycle = false;
+
+  group_on_recover_rule.addCondition(
+    hue.model.ruleConditions
+      .sensor(status_variable)
+      .when("status")
+      .equals(MotionRuleStatus.PLAN_GROUP_ON)
+  );
+  group_on_recover_rule.addCondition(
+    hue.model.ruleConditions
+      .sensor(scene_set_in_this_period)
+      .when("status")
+      .equals(SceneSetStatus.WAS_SET)
+  );
+  group_on_recover_rule.addCondition(
+    hue.model.ruleConditions
+      .sensor(status_variable)
+      .when("lastupdated")
+      .changed()
+  );
+
+  group_on_recover_rule.addAction(
+    hue.model.actions.group(group).withState({
+      on: true,
+      scene: tmp_scene.id,
+      transitiontime: transitionTimes.set_scene,
+    })
+  );
+  group_on_recover_rule.addAction(
+    hue.model.actions
+      .sensor(scene_set_in_this_period)
+      .withState({ status: SceneSetStatus.WAS_SET })
+  );
+  group_on_recover_rule.addAction(
+    hue.model.actions
+      .sensor(status_variable)
+      .withState({ status: MotionRuleStatus.GROUP_ON })
+  );
+
+  return [group_on_recover_rule];
+}
+
+// Trigger Scene change immediately, e.g. when changing activity.
+// This is implemented using one rule:
+// 1. Set MRStatus to PLAN_GROUP_ON if MRStatus is GROUP_ON and
+//    Scene Set Status is SCHEDULE_IMMEDIATELY.
+// MRStatus transitions from GROUP_ON to PLAN_GROUP_ON (7).
+function immediateSceneChangeRules(
+  prefix: string,
+  motion_rule_status_variable: CLIPGenericStatus,
+  scene_set_status_variable: CLIPGenericStatus,
+  group: string | number | Group
+) {
+  const immediate_rule = hue.model.createRule();
+  immediate_rule.name = `${prefix} - immediate`;
+  immediate_rule.recycle = false;
+
+  immediate_rule.addCondition(
+    hue.model.ruleConditions
+      .sensor(motion_rule_status_variable)
+      .when("status")
+      .equals(MotionRuleStatus.GROUP_ON)
+  );
+  immediate_rule.addCondition(
+    hue.model.ruleConditions
+      .sensor(scene_set_status_variable)
+      .when("status")
+      .equals(SceneSetStatus.SCHEDULE_IMMEDIATELY)
+  );
+
+  immediate_rule.addAction(
+    hue.model.actions
+      .sensor(motion_rule_status_variable)
+      .withState({ status: MotionRuleStatus.PLAN_GROUP_ON })
+  );
+
+  return [immediate_rule];
+}
+
+declare type LightScene = model.LightScene;
+declare type GroupScene = model.GroupScene;
+declare type SceneType = LightScene | GroupScene;
+
+export function motionSensorBaseRules(
+  prefix: string,
+  motion_rule_status_variable: CLIPGenericStatus,
+  scene_set_status_variable: CLIPGenericStatus,
+  presence: Sensor,
+  light_level: Sensor,
+  group: string | number | Group,
+  dim_delay: string,
+  tmp_scene: SceneType
+): Rule[] {
+  // (1)
+  const on_rules = planGroupOnRules(
+    prefix,
+    motion_rule_status_variable,
+    presence,
+    light_level
+  );
+
+  // (2) are in activitites.ts
+
+  // (3)
+  const group_on_recover_rules = groupOnRecoverRules(
+    prefix,
+    motion_rule_status_variable,
+    scene_set_status_variable,
+    group,
+    tmp_scene
+  );
+
+  // (4)
+  const dim_rules = dimRules(
+    prefix,
+    motion_rule_status_variable,
+    presence,
+    group,
+    dim_delay,
+    tmp_scene
+  );
+
+  // (5)
+  const recover_rules = recoverFromDimmedRules(
+    prefix,
+    motion_rule_status_variable,
+    presence
+  );
+
+  // (6)
+  const arm_rules = armRules(
+    prefix,
+    motion_rule_status_variable,
+    presence,
+    group
+  );
+
+  // (7)
+  const immediate_rules = immediateSceneChangeRules(
+    prefix,
+    motion_rule_status_variable,
+    scene_set_status_variable,
+    group
+  );
+
   return [
     ...on_rules,
+    ...group_on_recover_rules,
     ...dim_rules,
-    recover_scense_triggered_rule,
-    recover_dimmed_rule,
-    off_rule,
-    arm_rule,
-    ...brightness_rules,
+    ...recover_rules,
+    ...arm_rules,
+    ...immediate_rules,
   ];
 }

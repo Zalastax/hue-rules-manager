@@ -70,8 +70,9 @@ export async function getGroups(api: Api): Promise<KnownGroups> {
 }
 
 export const transitionTimes = {
-  // Needs to be 0 so that dimmin transition starts from the scene's level
-  set_scene: 0,
+  set_scene: 20,
+  brightness: 10,
+  brightness_stop: 4,
   dimming: 3,
 };
 

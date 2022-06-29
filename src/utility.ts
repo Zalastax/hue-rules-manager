@@ -22,6 +22,15 @@ export async function getRules(api: Api) {
   }
 }
 
+export async function getScenes(api: Api) {
+  try {
+    return await api.scenes.getAll();
+  } catch (error) {
+    console.error(`Failed to fetch scenes. Exiting. Error: ${error}`);
+    throw error;
+  }
+}
+
 export async function clearRules(api: Api) {
   const rules = await getRules(api);
   const username: string = process.env.HUE_USERNAME;
@@ -35,7 +44,24 @@ export async function clearRules(api: Api) {
         throw new Error("Rule deletion failure");
       }
     } else {
-      console.log(rule.toStringDetailed());
+      // console.log(rule.toStringDetailed());
+    }
+  }
+}
+
+export async function clearScenes(api: Api) {
+  const scenes = await getScenes(api);
+  const username: string = process.env.HUE_USERNAME;
+
+  for (const scene of scenes) {
+    if (scene.owner === username) {
+      const success = await api.scenes.deleteScene(scene);
+      if (!success) {
+        console.error(`Failed to delete scene: ${scene.toStringDetailed()}`);
+        throw new Error("Scene deletion failure");
+      }
+    } else {
+      // console.log(scene.toStringDetailed());
     }
   }
 }

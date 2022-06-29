@@ -1,10 +1,11 @@
 import { model, v3 as hue } from "node-hue-api";
 import { Api } from "node-hue-api/dist/esm/api/Api";
+import { KnownGroups } from "./static_resources";
 
 export enum MotionRuleStatus {
   ARMED = 0,
-  SHOULD_TRIGGER_SCENE = 1,
-  SCENE_TRIGGERED = 2,
+  PLAN_GROUP_ON = 1,
+  GROUP_ON = 2,
   DIMMED = 3,
 }
 
@@ -21,11 +22,17 @@ export enum LateNightRuleStatus {
   IS_LATE_NIGHT = 1,
 }
 
+export enum SceneSetStatus {
+  WAS_SET = 2,
+  SCHEDULE_FOR_ARMED = 1,
+  SCHEDULE_IMMEDIATELY = 0,
+}
+
 export enum ActivityStatus {
-  NORMAL = 0,
-  RELAX = 1,
-  FOCUS = 2,
-  DINNER = 3,
+  FOCUS = 0,
+  NORMAL = 1,
+  DINNER = 2,
+  RELAX = 3,
   TV = 4,
 }
 
@@ -70,22 +77,62 @@ export function setupCLIPGenericStatusSensor(
   });
 }
 
-export async function createVariables(api: Api) {
+export function setupScene(api: Api, name: string, group: string) {
+  console.log(`setupScene(..., ${name}, ${group})`);
+  const scene = hue.model.createGroupScene();
+
+  scene.name = name;
+  scene.group = group;
+
+  return api.scenes.createScene(scene);
+}
+
+export async function createVariables(api: Api, known_groups: KnownGroups) {
   return {
     kitchen_status: await setupCLIPGenericStatusSensor(
       api,
       "kitchen status",
       MotionRuleStatus.ARMED
     ),
+    kitchen_scene_set_in_this_period: await setupCLIPGenericStatusSensor(
+      api,
+      "kitchen scene_set",
+      SceneSetStatus.SCHEDULE_IMMEDIATELY
+    ),
+    kitchen_tmp_scene: await setupScene(
+      api,
+      "kitchen tmp",
+      `${known_groups.Kök.id}`
+    ),
     hallway_status: await setupCLIPGenericStatusSensor(
       api,
       "hallway status",
       MotionRuleStatus.ARMED
     ),
+    hallway_scene_set_in_this_period: await setupCLIPGenericStatusSensor(
+      api,
+      "hallway scene_set",
+      SceneSetStatus.SCHEDULE_IMMEDIATELY
+    ),
+    hallway_tmp_scene: await setupScene(
+      api,
+      "hallway tmp",
+      `${known_groups.Hallway.id}`
+    ),
     livingroom_status: await setupCLIPGenericStatusSensor(
       api,
       "livingroom status",
       MotionRuleStatus.ARMED
+    ),
+    livingroom_scene_set_in_this_period: await setupCLIPGenericStatusSensor(
+      api,
+      "livingroom scene_set",
+      SceneSetStatus.SCHEDULE_IMMEDIATELY
+    ),
+    livingroom_tmp_scene: await setupScene(
+      api,
+      "livingroom tmp",
+      `${known_groups["Living room"].id}`
     ),
     is_late_night_status: await setupCLIPGenericStatusSensor(
       api,
@@ -104,3 +151,7 @@ export async function createVariables(api: Api) {
     ),
   };
 }
+
+// Time to turn off the lights expressed in unit 100 ms
+// 2 minutes
+export const DIMMING_TIME = 2 * 60 * 10;

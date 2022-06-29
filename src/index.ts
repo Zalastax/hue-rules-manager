@@ -1,16 +1,15 @@
 import dotenv from "dotenv";
 import { model } from "node-hue-api";
 import { Api } from "node-hue-api/dist/esm/api/Api";
-import { activitiesRules } from "./activities";
+import { activitiesRules, resetStatusesRules } from "./activities";
 import {
   setupLateNightStatus,
-  setupAllOff,
-  setupActivity,
+  setupActivityCounting,
   setupBrightness,
 } from "./dimmer_switch_rules";
 import { getGroups, getSensors } from "./static_resources";
-import { clearClipSensors, clearRules, getApi } from "./utility";
-import { createVariables } from "./variables";
+import { clearClipSensors, clearRules, clearScenes, getApi } from "./utility";
+import { createVariables, SceneSetStatus } from "./variables";
 
 declare type CLIPGenericStatus = model.CLIPGenericStatus;
 declare type Rule = model.Rule;
@@ -32,51 +31,62 @@ async function createRules(api: Api, rules: Rule[]) {
 async function createRulesAndSensors(api: Api) {
   const known_groups = await getGroups(api);
   const known_sensors = await getSensors(api);
-  const variables = await createVariables(api);
+  const variables = await createVariables(api, known_groups);
 
   await createRules(api, [
     ...activitiesRules(
       "kitchen",
-      "PT00:20:00",
+      "PT00:15:00",
       known_groups.Kök,
       variables.kitchen_status,
+      variables.kitchen_scene_set_in_this_period,
       variables.is_late_night_status,
-      variables.brightness,
       variables.activity,
       known_sensors.kitchen_presence,
       known_sensors.kitchen_light_level,
-      known_sensors.builtin_daylight
+      known_sensors.builtin_daylight,
+      variables.kitchen_tmp_scene
     ),
     ...activitiesRules(
       "hall",
-      "PT00:01:30",
+      "PT00:01:00",
       known_groups.Hallway,
       variables.hallway_status,
+      variables.hallway_scene_set_in_this_period,
       variables.is_late_night_status,
-      variables.brightness,
       variables.activity,
       known_sensors.hallway_presence,
       known_sensors.hallway_light_level,
-      known_sensors.builtin_daylight
+      known_sensors.builtin_daylight,
+      variables.hallway_tmp_scene
     ),
     ...activitiesRules(
       "LivRo",
       "PT01:00:00",
       known_groups["Living room"],
       variables.livingroom_status,
+      variables.livingroom_scene_set_in_this_period,
       variables.is_late_night_status,
-      variables.brightness,
       variables.activity,
       known_sensors.livingroom_presence,
       known_sensors.livingroom_light_level,
-      known_sensors.builtin_daylight
+      known_sensors.builtin_daylight,
+      variables.livingroom_tmp_scene
     ),
   ]);
 
-  const status_variables: CLIPGenericStatus[] = [
-    variables.kitchen_status,
-    variables.hallway_status,
-    variables.livingroom_status,
+  await createRules(api, resetStatusesRules(known_groups, variables.activity));
+
+  const schedule_all_rooms = [
+    model.actions
+      .sensor(variables.kitchen_scene_set_in_this_period)
+      .withState({ status: SceneSetStatus.SCHEDULE_IMMEDIATELY }),
+    model.actions
+      .sensor(variables.hallway_scene_set_in_this_period)
+      .withState({ status: SceneSetStatus.SCHEDULE_IMMEDIATELY }),
+    model.actions
+      .sensor(variables.livingroom_scene_set_in_this_period)
+      .withState({ status: SceneSetStatus.SCHEDULE_IMMEDIATELY }),
   ];
 
   await createRules(
@@ -84,40 +94,40 @@ async function createRulesAndSensors(api: Api) {
     setupLateNightStatus(
       variables.is_late_night_status,
       known_sensors,
-      status_variables
+      schedule_all_rooms
     )
   );
 
   await createRules(
     api,
-    setupAllOff(
-      known_groups,
-      known_sensors,
-      variables.brightness,
-      variables.activity
+    setupActivityCounting(known_sensors, variables.activity, schedule_all_rooms)
+  );
+
+  await createRules(
+    api,
+    setupBrightness(
+      "LivRo bri",
+      known_groups["Living room"],
+      known_sensors.dimmer_switch
     )
-  );
-
-  await createRules(
-    api,
-    setupActivity(known_sensors, variables.activity, status_variables)
-  );
-
-  await createRules(
-    api,
-    setupBrightness(known_sensors, variables.brightness, status_variables)
   );
 }
 
 async function run() {
   const api = await getApi();
 
+  console.log("clearRule");
   await clearRules(api);
+  console.log("clearClipSensors");
   await clearClipSensors(api);
+  console.log("clearScenes");
+  await clearScenes(api);
+  console.log("createRulesAndSensors");
   await createRulesAndSensors(api);
 }
 
 dotenv.config();
 run().catch((error) => {
   console.error(`Failure when running: ${error}`);
+  console.error(error.stack);
 });
