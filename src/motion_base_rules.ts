@@ -257,7 +257,6 @@ function groupOnRecoverRules(
 
   group_on_recover_rule.addAction(
     hue.model.actions.group(group).withState({
-      on: true,
       scene: tmp_scene.id,
       transitiontime: transitionTimes.set_scene,
     })

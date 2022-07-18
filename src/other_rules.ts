@@ -209,13 +209,31 @@ export function setupBrightness(
   ];
 }
 
-// Changes late night status automatically or via dimmer
-export function setupLateNightStatus(
-  late_night_status_variable: CLIPGenericStatus,
-  sensors: KnownSensors,
+export function setupDaylightRules(
+  daylight: Sensor,
   trigger_extra_actions: BridgeActionPayload[]
 ): Rule[] {
-  const prefix = "late night status";
+  const daylight_rule = hue.model.createRule();
+  daylight_rule.name = `daylight change`;
+  daylight_rule.recycle = false;
+
+  daylight_rule.addCondition(
+    hue.model.ruleConditions.sensor(daylight).when("daylight").changed()
+  );
+
+  for (const extra_action of trigger_extra_actions) {
+    daylight_rule.addAction(extra_action);
+  }
+
+  return [daylight_rule];
+}
+
+// Changes late night status based on time of day
+export function setupLateNightTimerBasedRules(
+  late_night_status_variable: CLIPGenericStatus,
+  trigger_extra_actions: BridgeActionPayload[]
+): Rule[] {
+  const prefix = "late night timer";
   const late_night_range = "T22:20:00/T08:00:00";
 
   const not_late_night_rule = hue.model.createRule();
@@ -236,6 +254,10 @@ export function setupLateNightStatus(
       .withState({ status: LateNightRuleStatus.NOT_LATE_NIGHT })
   );
 
+  for (const extra_action of trigger_extra_actions) {
+    not_late_night_rule.addAction(extra_action);
+  }
+
   const late_night_rule = hue.model.createRule();
   late_night_rule.name = `${prefix} - l8 night`;
   late_night_rule.recycle = false;
@@ -254,8 +276,23 @@ export function setupLateNightStatus(
       .withState({ status: LateNightRuleStatus.IS_LATE_NIGHT })
   );
 
+  for (const extra_action of trigger_extra_actions) {
+    late_night_rule.addAction(extra_action);
+  }
+
+  return [late_night_rule, not_late_night_rule];
+}
+
+// Changes late night status via dimmer buttons
+export function setupLateNightButtonSwitch(
+  late_night_status_variable: CLIPGenericStatus,
+  sensors: KnownSensors,
+  trigger_extra_actions: BridgeActionPayload[]
+): Rule[] {
+  const prefix = "late night buttons";
+
   const dimmer_switch_armed_rule = hue.model.createRule();
-  dimmer_switch_armed_rule.name = `${prefix} - dimmer armed`;
+  dimmer_switch_armed_rule.name = `${prefix} - not -> is`;
   dimmer_switch_armed_rule.recycle = false;
 
   dimmer_switch_armed_rule.addCondition(
@@ -289,7 +326,7 @@ export function setupLateNightStatus(
   }
 
   const dimmer_switch_late_night_rule = hue.model.createRule();
-  dimmer_switch_late_night_rule.name = `${prefix} - dimmer l8`;
+  dimmer_switch_late_night_rule.name = `${prefix} - is -> not`;
   dimmer_switch_late_night_rule.recycle = false;
 
   dimmer_switch_late_night_rule.addCondition(
@@ -322,12 +359,7 @@ export function setupLateNightStatus(
     dimmer_switch_late_night_rule.addAction(extra_action);
   }
 
-  return [
-    late_night_rule,
-    dimmer_switch_armed_rule,
-    not_late_night_rule,
-    dimmer_switch_late_night_rule,
-  ];
+  return [dimmer_switch_armed_rule, dimmer_switch_late_night_rule];
 }
 
 type BridgeActionPayload = Parameters<model.Rule["addAction"]>[0];

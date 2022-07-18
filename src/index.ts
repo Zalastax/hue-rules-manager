@@ -3,10 +3,12 @@ import { model } from "node-hue-api";
 import { Api } from "node-hue-api/dist/esm/api/Api";
 import { activitiesRules, resetStatusesRules } from "./activities";
 import {
-  setupLateNightStatus,
+  setupLateNightButtonSwitch,
   setupActivityCounting,
   setupBrightness,
-} from "./dimmer_switch_rules";
+  setupLateNightTimerBasedRules,
+  setupDaylightRules,
+} from "./other_rules";
 import { getGroups, getSensors } from "./static_resources";
 import { clearClipSensors, clearRules, clearScenes, getApi } from "./utility";
 import { createVariables, SceneSetStatus } from "./variables";
@@ -77,7 +79,40 @@ async function createRulesAndSensors(api: Api) {
 
   await createRules(api, resetStatusesRules(known_groups, variables.activity));
 
-  const schedule_all_rooms = [
+  // This might change status from immediately to for armed.
+  // Should not be a problem since immediately is short lived
+  // when lights are on and has the same effect as for armed
+  // when lights are off.
+  // A separate variable might have been better...
+  const schedule_all_rooms_for_armed = [
+    model.actions
+      .sensor(variables.kitchen_scene_set_in_this_period)
+      .withState({ status: SceneSetStatus.SCHEDULE_FOR_ARMED }),
+    model.actions
+      .sensor(variables.hallway_scene_set_in_this_period)
+      .withState({ status: SceneSetStatus.SCHEDULE_FOR_ARMED }),
+    model.actions
+      .sensor(variables.livingroom_scene_set_in_this_period)
+      .withState({ status: SceneSetStatus.SCHEDULE_FOR_ARMED }),
+  ];
+
+  await createRules(
+    api,
+    setupDaylightRules(
+      known_sensors.builtin_daylight,
+      schedule_all_rooms_for_armed
+    )
+  );
+
+  await createRules(
+    api,
+    setupLateNightTimerBasedRules(
+      variables.is_late_night_status,
+      schedule_all_rooms_for_armed
+    )
+  );
+
+  const schedule_all_rooms_immediately = [
     model.actions
       .sensor(variables.kitchen_scene_set_in_this_period)
       .withState({ status: SceneSetStatus.SCHEDULE_IMMEDIATELY }),
@@ -91,16 +126,20 @@ async function createRulesAndSensors(api: Api) {
 
   await createRules(
     api,
-    setupLateNightStatus(
+    setupLateNightButtonSwitch(
       variables.is_late_night_status,
       known_sensors,
-      schedule_all_rooms
+      schedule_all_rooms_immediately
     )
   );
 
   await createRules(
     api,
-    setupActivityCounting(known_sensors, variables.activity, schedule_all_rooms)
+    setupActivityCounting(
+      known_sensors,
+      variables.activity,
+      schedule_all_rooms_immediately
+    )
   );
 
   await createRules(
