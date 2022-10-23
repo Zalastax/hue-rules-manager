@@ -23,9 +23,8 @@ export enum LateNightRuleStatus {
 }
 
 export enum SceneSetStatus {
-  WAS_SET = 2,
-  SCHEDULE_FOR_ARMED = 1,
-  SCHEDULE_IMMEDIATELY = 0,
+  NOT_SET = 0,
+  SET = 1,
 }
 
 export enum ActivityStatus {
@@ -97,11 +96,11 @@ export async function createVariables(api: Api, known_groups: KnownGroups) {
     kitchen_scene_set_in_this_period: await setupCLIPGenericStatusSensor(
       api,
       "kitchen scene_set",
-      SceneSetStatus.SCHEDULE_IMMEDIATELY
+      SceneSetStatus.NOT_SET
     ),
     kitchen_tmp_scene: await setupScene(
       api,
-      "kitchen tmp",
+      "Scene recoveryScene",
       `${known_groups.Kök.id}`
     ),
     hallway_status: await setupCLIPGenericStatusSensor(
@@ -112,11 +111,11 @@ export async function createVariables(api: Api, known_groups: KnownGroups) {
     hallway_scene_set_in_this_period: await setupCLIPGenericStatusSensor(
       api,
       "hallway scene_set",
-      SceneSetStatus.SCHEDULE_IMMEDIATELY
+      SceneSetStatus.NOT_SET
     ),
     hallway_tmp_scene: await setupScene(
       api,
-      "hallway tmp",
+      "Scene recoveryScene",
       `${known_groups.Hallway.id}`
     ),
     livingroom_status: await setupCLIPGenericStatusSensor(
@@ -127,11 +126,11 @@ export async function createVariables(api: Api, known_groups: KnownGroups) {
     livingroom_scene_set_in_this_period: await setupCLIPGenericStatusSensor(
       api,
       "livingroom scene_set",
-      SceneSetStatus.SCHEDULE_IMMEDIATELY
+      SceneSetStatus.NOT_SET
     ),
     livingroom_tmp_scene: await setupScene(
       api,
-      "livingroom tmp",
+      "Scene recoveryScene",
       `${known_groups["Living room"].id}`
     ),
     is_late_night_status: await setupCLIPGenericStatusSensor(
@@ -144,14 +143,10 @@ export async function createVariables(api: Api, known_groups: KnownGroups) {
       "activity status",
       ActivityStatus.NORMAL
     ),
-    brightness: await setupCLIPGenericStatusSensor(
-      api,
-      "brightness status",
-      BrightnessLevel.NEUTRAL
-    ),
   };
 }
 
 // Time to turn off the lights expressed in unit 100 ms
 // 2 minutes
 export const DIMMING_TIME = 2 * 60 * 10;
+export const DIMMING_TIME_TIMESTAMP = "PT00:02:00";

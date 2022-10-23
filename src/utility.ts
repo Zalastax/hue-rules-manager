@@ -54,7 +54,7 @@ export async function clearScenes(api: Api) {
   const username: string = process.env.HUE_USERNAME;
 
   for (const scene of scenes) {
-    if (scene.owner === username) {
+    if (scene.owner === username && scene.name === "Scene recoveryScene") {
       const success = await api.scenes.deleteScene(scene);
       if (!success) {
         console.error(`Failed to delete scene: ${scene.toStringDetailed()}`);

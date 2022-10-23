@@ -5,6 +5,7 @@ import {
   BrightnessLevel,
   DIMMING_TIME,
   SceneSetStatus,
+  DIMMING_TIME_TIMESTAMP,
 } from "./variables";
 
 declare type CLIPGenericStatus = model.CLIPGenericStatus;
@@ -12,6 +13,7 @@ declare type Group = model.Group;
 declare type Rule = model.Rule;
 declare type Sensor = model.Sensor;
 
+// TODO: Rewrite these comments to reflect restructure
 // Motion Rule Status (MRStatus) Transitions:
 // 1. ARMED -> PLAN_GROUP_ON if presence is detected while it is dark.
 // 2. PLAN_GROUP_ON -> GROUP_ON implemented by rules per activity and period of day.
@@ -107,33 +109,29 @@ function dimRules(
       .withState({ status: MotionRuleStatus.DIMMED })
   );
 
-  const dim_presence_rule = hue.model.createRule();
-  dim_presence_rule.name = `${prefix} - dim presence`;
-  dim_presence_rule.recycle = false;
+  // Set status to GROUP_ON when it's already GROUP_ON if presence
+  // is detected.
+  // By refreshing status, the previous rule does not trigger too early.
+  const refresh_group_on_rule = hue.model.createRule();
+  refresh_group_on_rule.name = `${prefix} - refresh on`;
+  refresh_group_on_rule.recycle = false;
 
-  dim_presence_rule.addCondition(
+  refresh_group_on_rule.addCondition(
     hue.model.ruleConditions
       .sensor(status_variable)
       .when("status")
       .equals(MotionRuleStatus.GROUP_ON)
   );
-  dim_presence_rule.addCondition(
-    hue.model.ruleConditions
-      .sensor(presence)
-      .when("presence")
-      .changedDelayed(dim_delay as any) // changedDelayed seems ill-typed
+  refresh_group_on_rule.addCondition(
+    hue.model.ruleConditions.sensor(presence).when("lastupdated").changed()
   );
-  dim_presence_rule.addCondition(
-    hue.model.ruleConditions.sensor(presence).when("presence").equals(false)
+  refresh_group_on_rule.addCondition(
+    hue.model.ruleConditions.sensor(presence).when("presence").equals(true)
   );
-
-  dim_presence_rule.addAction(
-    hue.model.actions.scene(tmp_scene).withState({ storelightstate: true })
-  );
-  dim_presence_rule.addAction(
+  refresh_group_on_rule.addAction(
     hue.model.actions
       .sensor(status_variable)
-      .withState({ status: MotionRuleStatus.DIMMED })
+      .withState({ status: MotionRuleStatus.GROUP_ON })
   );
 
   const dimmed_perform_rule = hue.model.createRule();
@@ -150,10 +148,49 @@ function dimRules(
   dimmed_perform_rule.addAction(
     hue.model.actions
       .group(group)
-      .withState({ on: false, transitiontime: DIMMING_TIME })
+      .withState({ transitiontime: DIMMING_TIME, bri_inc: -100 })
   );
 
-  return [dim_status_rule, dim_presence_rule, dimmed_perform_rule];
+  return [dim_status_rule, refresh_group_on_rule, dimmed_perform_rule];
+}
+
+function dimmedToOffRules(
+  prefix: string,
+  status_variable: CLIPGenericStatus,
+  presence: Sensor,
+  group: string | number | Group
+) {
+  const off_rule = hue.model.createRule();
+  off_rule.name = `${prefix} - off`;
+  off_rule.recycle = false;
+
+  off_rule.addCondition(
+    hue.model.ruleConditions
+      .sensor(status_variable)
+      .when("status")
+      .equals(MotionRuleStatus.DIMMED)
+  );
+
+  off_rule.addCondition(
+    hue.model.ruleConditions.sensor(presence).when("presence").equals(false)
+  );
+
+  off_rule.addCondition(
+    hue.model.ruleConditions
+      .sensor(status_variable)
+      .when("lastupdated")
+      .changedDelayed(DIMMING_TIME_TIMESTAMP as any) // changedDelayed seems ill-typed
+  );
+
+  off_rule.addAction(
+    hue.model.actions
+      .sensor(status_variable)
+      .withState({ status: MotionRuleStatus.ARMED })
+  );
+
+  off_rule.addAction(hue.model.actions.group(group).withState({ on: false }));
+
+  return [off_rule];
 }
 
 // Recovers lights when Dimming and Presence is detected.
@@ -189,7 +226,8 @@ function recoverFromDimmedRules(
   return [recover_dimmed_rule];
 }
 
-// Reset MRStatus when dimming
+// In case something goes wrong with the status,
+// this resets the status to 0, when all lights are off.
 // This is implemented using one rule:
 // 1. Set MRStatus to ARMED if Presence is not detected and no lights in the group are on.
 // MRStatus transitions to ARMED (6).
@@ -246,7 +284,7 @@ function groupOnRecoverRules(
     hue.model.ruleConditions
       .sensor(scene_set_in_this_period)
       .when("status")
-      .equals(SceneSetStatus.WAS_SET)
+      .equals(SceneSetStatus.SET)
   );
   group_on_recover_rule.addCondition(
     hue.model.ruleConditions
@@ -264,7 +302,7 @@ function groupOnRecoverRules(
   group_on_recover_rule.addAction(
     hue.model.actions
       .sensor(scene_set_in_this_period)
-      .withState({ status: SceneSetStatus.WAS_SET })
+      .withState({ status: SceneSetStatus.SET })
   );
   group_on_recover_rule.addAction(
     hue.model.actions
@@ -283,8 +321,7 @@ function groupOnRecoverRules(
 function immediateSceneChangeRules(
   prefix: string,
   motion_rule_status_variable: CLIPGenericStatus,
-  scene_set_status_variable: CLIPGenericStatus,
-  group: string | number | Group
+  scene_set_status_variable: CLIPGenericStatus
 ) {
   const immediate_rule = hue.model.createRule();
   immediate_rule.name = `${prefix} - immediate`;
@@ -300,7 +337,7 @@ function immediateSceneChangeRules(
     hue.model.ruleConditions
       .sensor(scene_set_status_variable)
       .when("status")
-      .equals(SceneSetStatus.SCHEDULE_IMMEDIATELY)
+      .equals(SceneSetStatus.NOT_SET)
   );
 
   immediate_rule.addAction(
@@ -327,14 +364,12 @@ export function motionSensorBaseRules(
   tmp_scene: SceneType
 ): Rule[] {
   // (1)
-  const on_rules = planGroupOnRules(
+  const plan_on_rules = planGroupOnRules(
     prefix,
     motion_rule_status_variable,
     presence,
     light_level
   );
-
-  // (2) are in activitites.ts
 
   // (3)
   const group_on_recover_rules = groupOnRecoverRules(
@@ -353,6 +388,13 @@ export function motionSensorBaseRules(
     group,
     dim_delay,
     tmp_scene
+  );
+
+  const off_rules = dimmedToOffRules(
+    prefix,
+    motion_rule_status_variable,
+    presence,
+    group
   );
 
   // (5)
@@ -374,14 +416,14 @@ export function motionSensorBaseRules(
   const immediate_rules = immediateSceneChangeRules(
     prefix,
     motion_rule_status_variable,
-    scene_set_status_variable,
-    group
+    scene_set_status_variable
   );
 
   return [
-    ...on_rules,
+    ...plan_on_rules,
     ...group_on_recover_rules,
     ...dim_rules,
+    ...off_rules,
     ...recover_rules,
     ...arm_rules,
     ...immediate_rules,

@@ -82,33 +82,14 @@ export enum DayCycle {
   LATE_NIGHT,
 }
 
-export const activity_scenes: Record<
-  ActivityStatus,
-  Record<DayCycle, string>
-> = {
-  [ActivityStatus.NORMAL]: {
-    [DayCycle.DAY]: "2N9ew2F9ilEBxT9",
-    [DayCycle.EARLY_NIGHT]: "MWSOSEAqqWzgm7p",
-    [DayCycle.LATE_NIGHT]: "nwSmiyQQhDSrEN8",
-  },
-  [ActivityStatus.RELAX]: {
-    [DayCycle.DAY]: "unioJwgDALrfWHC",
-    [DayCycle.EARLY_NIGHT]: "CxMQFku1o5zREJJ",
-    [DayCycle.LATE_NIGHT]: "ADDsZWHfVNbjrS4",
-  },
-  [ActivityStatus.FOCUS]: {
-    [DayCycle.DAY]: "CSvpHYT0VHZwZgD",
-    [DayCycle.EARLY_NIGHT]: "pDEBf2FhDpxaxV4",
-    [DayCycle.LATE_NIGHT]: "UCsUUfUbSMATxW8",
-  },
-  [ActivityStatus.DINNER]: {
-    [DayCycle.DAY]: "zhunCObavDkmSuA",
-    [DayCycle.EARLY_NIGHT]: "onSrdMNNmgUEt40",
-    [DayCycle.LATE_NIGHT]: "uyiQkLaXzZslzE5",
-  },
-  [ActivityStatus.TV]: {
-    [DayCycle.DAY]: "i3Qbk9WURl8wMzH",
-    [DayCycle.EARLY_NIGHT]: "Jllts4DcaIXK6fh",
-    [DayCycle.LATE_NIGHT]: "nkANEYmyZBTTuMD",
-  },
+export const auto_scene_kitchen = "Ni1Y2PmYaZee0Qj";
+export const auto_scene_hallway = "9JRAzsuqVfaJ74G";
+export const auto_scene_living_room = "JRvMRXkQHK5rlir";
+
+export const activity_scenes_living_room: Record<ActivityStatus, string> = {
+  [ActivityStatus.NORMAL]: auto_scene_living_room,
+  [ActivityStatus.RELAX]: "MaGOnFXSzZjebjP",
+  [ActivityStatus.FOCUS]: "hg5LUQrfYb2gaOA",
+  [ActivityStatus.DINNER]: "yAEtN0GZ3Ja0M8E",
+  [ActivityStatus.TV]: "Ry56OFq4x2Z--Sv",
 };

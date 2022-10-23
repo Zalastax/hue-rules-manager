@@ -5,6 +5,7 @@ import {
   ActivityStatus,
   BrightnessLevel,
   LateNightRuleStatus,
+  SceneSetStatus,
 } from "./variables";
 
 declare type CLIPGenericStatus = model.CLIPGenericStatus;
@@ -52,7 +53,7 @@ function transitionOnClick(
     hue.model.ruleConditions.sensor(variable).when("status").equals(from)
   );
   neutral_down_rule.addCondition(
-    hue.model.ruleConditions.sensor(sensor).when("buttonevent").changed()
+    hue.model.ruleConditions.sensor(sensor).when("lastupdated").changed()
   );
 
   neutral_down_rule.addAction(
@@ -209,25 +210,6 @@ export function setupBrightness(
   ];
 }
 
-export function setupDaylightRules(
-  daylight: Sensor,
-  trigger_extra_actions: BridgeActionPayload[]
-): Rule[] {
-  const daylight_rule = hue.model.createRule();
-  daylight_rule.name = `daylight change`;
-  daylight_rule.recycle = false;
-
-  daylight_rule.addCondition(
-    hue.model.ruleConditions.sensor(daylight).when("daylight").changed()
-  );
-
-  for (const extra_action of trigger_extra_actions) {
-    daylight_rule.addAction(extra_action);
-  }
-
-  return [daylight_rule];
-}
-
 // Changes late night status based on time of day
 export function setupLateNightTimerBasedRules(
   late_night_status_variable: CLIPGenericStatus,
@@ -281,85 +263,6 @@ export function setupLateNightTimerBasedRules(
   }
 
   return [late_night_rule, not_late_night_rule];
-}
-
-// Changes late night status via dimmer buttons
-export function setupLateNightButtonSwitch(
-  late_night_status_variable: CLIPGenericStatus,
-  sensors: KnownSensors,
-  trigger_extra_actions: BridgeActionPayload[]
-): Rule[] {
-  const prefix = "late night buttons";
-
-  const dimmer_switch_armed_rule = hue.model.createRule();
-  dimmer_switch_armed_rule.name = `${prefix} - not -> is`;
-  dimmer_switch_armed_rule.recycle = false;
-
-  dimmer_switch_armed_rule.addCondition(
-    hue.model.ruleConditions
-      .sensor(late_night_status_variable)
-      .when("status")
-      .equals(LateNightRuleStatus.NOT_LATE_NIGHT)
-  );
-  dimmer_switch_armed_rule.addCondition(
-    hue.model.ruleConditions
-      .sensor(sensors.dimmer_switch)
-      .when("buttonevent")
-      .changed()
-  );
-
-  dimmer_switch_armed_rule.addCondition(
-    hue.model.ruleConditions
-      .sensor(sensors.dimmer_switch)
-      .when("buttonevent")
-      .equals(DimmerAction.ON_BUTTON_LONG_RELEASED)
-  );
-
-  dimmer_switch_armed_rule.addAction(
-    hue.model.actions
-      .sensor(late_night_status_variable)
-      .withState({ status: LateNightRuleStatus.IS_LATE_NIGHT })
-  );
-
-  for (const extra_action of trigger_extra_actions) {
-    dimmer_switch_armed_rule.addAction(extra_action);
-  }
-
-  const dimmer_switch_late_night_rule = hue.model.createRule();
-  dimmer_switch_late_night_rule.name = `${prefix} - is -> not`;
-  dimmer_switch_late_night_rule.recycle = false;
-
-  dimmer_switch_late_night_rule.addCondition(
-    hue.model.ruleConditions
-      .sensor(late_night_status_variable)
-      .when("status")
-      .equals(LateNightRuleStatus.IS_LATE_NIGHT)
-  );
-
-  dimmer_switch_late_night_rule.addCondition(
-    hue.model.ruleConditions
-      .sensor(sensors.dimmer_switch)
-      .when("buttonevent")
-      .equals(DimmerAction.ON_BUTTON_LONG_RELEASED)
-  );
-  dimmer_switch_late_night_rule.addCondition(
-    hue.model.ruleConditions
-      .sensor(sensors.dimmer_switch)
-      .when("buttonevent")
-      .changed()
-  );
-
-  dimmer_switch_late_night_rule.addAction(
-    hue.model.actions
-      .sensor(late_night_status_variable)
-      .withState({ status: LateNightRuleStatus.NOT_LATE_NIGHT })
-  );
-
-  for (const extra_action of trigger_extra_actions) {
-    dimmer_switch_late_night_rule.addAction(extra_action);
-  }
-
-  return [dimmer_switch_armed_rule, dimmer_switch_late_night_rule];
 }
 
 type BridgeActionPayload = Parameters<model.Rule["addAction"]>[0];
@@ -436,4 +339,43 @@ export function setupActivityCounting(
       trigger_extra_actions
     ),
   ];
+}
+
+export function resetSceneSetRules(
+  prefix: string,
+  group: string | number | model.Group,
+  delay: string,
+  scene_set_in_this_period: CLIPGenericStatus,
+  trigger_extra_actions: BridgeActionPayload[]
+) {
+  const rules: Rule[] = [];
+
+  const off_long_time_rule = hue.model.createRule();
+  off_long_time_rule.name = `${prefix} - off time`;
+  off_long_time_rule.recycle = false;
+
+  off_long_time_rule.addCondition(
+    hue.model.ruleConditions.group(group).when().anyOn().equals(false)
+  );
+  off_long_time_rule.addCondition(
+    hue.model.ruleConditions
+      .group(group)
+      .when()
+      .anyOn()
+      .changedDelayed(delay as any)
+  );
+
+  off_long_time_rule.addAction(
+    hue.model.actions
+      .sensor(scene_set_in_this_period)
+      .withState({ status: SceneSetStatus.NOT_SET })
+  );
+
+  for (const extra_action of trigger_extra_actions) {
+    off_long_time_rule.addAction(extra_action);
+  }
+
+  rules.push(off_long_time_rule);
+
+  return rules;
 }

@@ -3,15 +3,17 @@
   "version": "1.0.0",
   "description": "Manages rules on a Hue bridge",
   "scripts": {
-    "start": "tsc && node build/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "start:debug": "node build/debug.js",
+    "start:rules": "node build/set_rules.js",
+    "start:scenes": "node build/set_scenes.js"
   },
   "author": "Pierre Krafft",
   "license": "MIT",
   "dependencies": {
     "@types/node": "^16.4.3",
     "dotenv": "^10.0.0",
-    "node-hue-api": "file://../node-hue-api",
+    "node-hue-api": "^5.0.0-beta.14",
     "tslib": "^2.3.0",
     "typescript": "^4.3.5"
   }
