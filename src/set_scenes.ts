@@ -7,6 +7,12 @@ import {
   auto_scene_living_room,
 } from "./static_resources";
 
+function safeSetBrightness(brightness: number, ls: { bri?: number }) {
+  if (ls.bri !== undefined) {
+    ls.bri = brightness;
+  }
+}
+
 // 9  - Hall 2
 // 10 - Hall 1
 // 11 - Hall 3
@@ -40,7 +46,7 @@ async function setHallwayAuto(api: Api) {
   return api.scenes.getScene(auto_scene_hallway).then((scene) => {
     for (const ls_id in scene.lightstates) {
       const ls = (scene.lightstates as any)[ls_id];
-      ls["bri"] = brightness;
+      safeSetBrightness(brightness, ls);
       ls["on"] = false;
     }
 
@@ -77,7 +83,7 @@ async function setKitchenAuto(api: Api) {
   return api.scenes.getScene(auto_scene_kitchen).then((scene) => {
     for (const ls_id in scene.lightstates) {
       const ls = (scene.lightstates as any)[ls_id];
-      ls["bri"] = brightness;
+      safeSetBrightness(brightness, ls);
     }
     return api.scenes.updateScene(scene);
   });
@@ -110,7 +116,7 @@ async function setLivingRoomAuto(api: Api) {
   return api.scenes.getScene(auto_scene_living_room).then((scene) => {
     for (const ls_id in scene.lightstates) {
       const ls = (scene.lightstates as any)[ls_id];
-      ls["bri"] = brightness;
+      safeSetBrightness(brightness, ls);
     }
 
     return api.scenes.updateScene(scene);
